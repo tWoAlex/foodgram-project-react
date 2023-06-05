@@ -1,23 +1,39 @@
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
-from rest_framework import permissions, status, viewsets
+from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.authentication import TokenAuthentication
-from rest_framework.authtoken.models import Token
 from rest_framework.decorators import (api_view, action,
                                        authentication_classes,
                                        permission_classes)
 from rest_framework.response import Response
 
+from recipes.models import Ingredient, Tag
+
 from .pagination import PageLimitPagination
-from .serializers import (TokenApproveSerializer,
-                          UserSerializer, AuthorSerializer)
+from .serializers import (TokenApproveSerializer, ChangePasswordSerializer,
+                          UserSerializer, AuthorSerializer,
+                          IngredientSerializer, TagSerializer)
+from .utils import create_token, delete_token
 
 
 User = get_user_model()
 
 
+class IngredientViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
+                        viewsets.GenericViewSet):
+    queryset = Ingredient.objects.all()
+    serializer_class = IngredientSerializer
+    pagination_class = None
+
+
+class TagViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
+                 viewsets.GenericViewSet):
+    queryset = Tag.objects.all()
+    serializer_class = TagSerializer
+    pagination_class = None
+
+
 class UserViewSet(viewsets.ModelViewSet):
-    lookup_field = 'pk'
     queryset = User.objects.all()
     serializer_class = UserSerializer
     authentication_classes = (TokenAuthentication,)
@@ -25,10 +41,22 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @action(methods=('GET',), detail=False,
             authentication_classes=(TokenAuthentication,),
-            permission_classes=(permissions.IsAuthenticated,),)
+            permission_classes=(permissions.IsAuthenticated,))
     def me(self, request):
         serializer = self.get_serializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(methods=('POST',), detail=False,
+            authentication_classes=(TokenAuthentication,),
+            permission_classes=(permissions.IsAuthenticated,),
+            serializer_class=ChangePasswordSerializer)
+    def set_password(self, request):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            request.user.set_password(serializer.data['new_password'])
+            request.user.save()
+            return Response('Пароль изменён', status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(methods=('POST', 'DELETE'), detail=True,
             authentication_classes=(TokenAuthentication,),
@@ -71,10 +99,6 @@ class UserViewSet(viewsets.ModelViewSet):
         return self.get_paginated_response(serializer.data)
 
 
-def delete_token(user: User):
-    Token.objects.filter(user=user).delete()
-
-
 @api_view(http_method_names=('POST',))
 def invoke_token(request):
     serializer = TokenApproveSerializer(data=request.data)
@@ -83,7 +107,7 @@ def invoke_token(request):
                              password=serializer.validated_data['password'])
 
     delete_token(user)
-    token = Token.objects.create(user=user)
+    token = create_token(user)
     return Response({'auth_token': token.key}, status.HTTP_201_CREATED)
 
 

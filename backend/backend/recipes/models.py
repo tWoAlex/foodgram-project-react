@@ -9,9 +9,9 @@ User = get_user_model()
 
 class Ingredient(models.Model):
     class MeasurementUnits(models.TextChoices):
-        KG = 'kg', 'кг'
-        G = 'g', 'г'
-        NUM = 'pcs', 'шт'
+        KG = 'кг', 'кг'
+        G = 'г', 'г'
+        NUM = 'шт', 'шт'
     name = models.CharField(max_length=50, unique=True,
                             verbose_name='Ингредиент')
     maesurement_unit = models.CharField(choices=MeasurementUnits.choices,
@@ -22,6 +22,7 @@ class Ingredient(models.Model):
     class Meta:
         verbose_name = 'Ингредиент'
         verbose_name_plural = 'Ингредиенты'
+        ordering = ('name',)
 
     def __str__(self):
         return self.name
@@ -36,6 +37,7 @@ class Tag(models.Model):
     class Meta:
         verbose_name = 'Тэг'
         verbose_name_plural = 'Тэги'
+        ordering = ('name',)
 
     def __str__(self):
         return self.name
@@ -51,6 +53,7 @@ class Recipe(models.Model):
     class Meta:
         verbose_name = 'Рецепт'
         verbose_name_plural = 'Рецепты'
+        ordering = ('name',)
 
     def __str__(self):
         return self.name
