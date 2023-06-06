@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import (Recipe, Ingredient, IngredientRecipe, Tag, TagRecipe)
+from .models import (Recipe, Ingredient, Component, Tag, TagRecipe)
 
 
 @admin.register(Recipe)
@@ -10,17 +10,17 @@ class RecipeAdmin(admin.ModelAdmin):
 
 @admin.register(Ingredient)
 class IngredientAdmin(admin.ModelAdmin):
-    list_display = ('name', 'maesurement_unit')
+    list_display = ('id', 'name', 'measurement_unit')
 
 
-@admin.register(IngredientRecipe)
-class IngredientRecipeAdmin(admin.ModelAdmin):
-    list_display = ('ingredient', 'amount')
+@admin.register(Component)
+class ComponentAdmin(admin.ModelAdmin):
+    pass
 
 
 @admin.register(Tag)
 class TagAdmin(admin.ModelAdmin):
-    list_display = ('name', 'color')
+    list_display = ('name', 'color', 'slug')
 
 
 @admin.register(TagRecipe)

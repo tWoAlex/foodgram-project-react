@@ -7,12 +7,13 @@ from rest_framework.decorators import (api_view, action,
                                        permission_classes)
 from rest_framework.response import Response
 
-from recipes.models import Ingredient, Tag
+from recipes.models import Ingredient, Recipe, Tag
 
 from .pagination import PageLimitPagination
 from .serializers import (TokenApproveSerializer, ChangePasswordSerializer,
                           UserSerializer, AuthorSerializer,
-                          IngredientSerializer, TagSerializer)
+                          IngredientSerializer, RecipeSerializer,
+                          TagSerializer)
 from .utils import create_token, delete_token
 
 
@@ -33,7 +34,16 @@ class TagViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
     pagination_class = None
 
 
-class UserViewSet(viewsets.ModelViewSet):
+class RecipeViewSet(viewsets.ModelViewSet):
+    queryset = Recipe.objects.all()
+    serializer_class = RecipeSerializer
+    pagination_class = None
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (permissions.IsAuthenticatedOrReadOnly,)
+
+
+class UserViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
+                  mixins.CreateModelMixin, viewsets.GenericViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     authentication_classes = (TokenAuthentication,)
