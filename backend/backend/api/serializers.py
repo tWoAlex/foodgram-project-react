@@ -1,8 +1,13 @@
+from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
+from rest_framework.fields import empty
+from rest_framework.validators import UniqueTogetherValidator
 
-from recipes.models import Component, Ingredient, Recipe, Tag
+from recipes.models import (Component, Ingredient, Recipe,
+                            Tag, TagRecipe,
+                            FavouriteRecipe, ShoppingCart)
 
 
 User = get_user_model()
@@ -48,11 +53,10 @@ class UserSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         data.pop('password')
 
-        data['is_subscribed'] = False
         user = self.context['request'].user
-        if user.is_authenticated:
-            data['is_subscribed'] = instance in user.subscribed.all()
-
+        data['is_subscribed'] = (
+            instance in user.subscribed.all()
+            if user.is_authenticated else False)
         return data
 
 
@@ -76,52 +80,102 @@ class TagSerializer(serializers.ModelSerializer):
 
 
 class ComponentSerializer(IngredientSerializer):
-    name = serializers.StringRelatedField(read_only=True,
-                                          source='ingredient.name')
-    measurement_unit = serializers.StringRelatedField(
-        read_only=True, source='ingredient.measurement_unit')
-    id = serializers.PrimaryKeyRelatedField(
-        queryset=Ingredient.objects.all())
-
     class Meta:
         model = Component
-        fields = ('id', 'amount', 'name', 'measurement_unit')
+        fields = ('id', 'amount')
+        read_only_fields = fields
+
+    def to_representation(self, instance):
+        data = IngredientSerializer().to_representation(
+            instance.ingredient)
+        data.update({'amount': instance.amount})
+        return data
 
 
 class RecipeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipe
         fields = '__all__'
+        validators = (UniqueTogetherValidator(
+            queryset=Recipe.objects.all(), fields=('author', 'name')),)
 
     author = UserSerializer(read_only=True)
-    tags = serializers.PrimaryKeyRelatedField(
-        queryset=Tag.objects.all(), many=True)
-    # ingredients = ComponentSerializer(many=True)
-    ingredients = serializers.PrimaryKeyRelatedField(
-        queryset=Component.objects.all(), many=True)
-
-    # def validate(self, attrs):
-    #     data = super().validate(attrs)
-    #     data['author'] = self.context['request'].user
-    #     return data
-
-    def validate(self, attrs):
-        return super().validate(attrs)
-
-    def create(self, validated_data):
-        print('\n', validated_data, '\n')
-        components = validated_data.pop('ingredients')
-        print('\n', components, '\n')
-        components = ComponentSerializer(
-            many=True).to_internal_value(components)
-        recipe = super().create(validated_data)
-        components.update(recipe=recipe)
-        return recipe
+    tags = TagSerializer(many=True, read_only=True)
+    ingredients = ComponentSerializer(many=True, read_only=True)
 
     def to_representation(self, instance):
+        user = self.context['request'].user
+
         data = super().to_representation(instance)
         data['tags'] = TagSerializer(many=True).to_representation(
             instance.tags)
-        data['ingredients'] = ComponentSerializer(many=True).to_representation(
-            instance.ingredients)
+        data['ingredients'] = ComponentSerializer(
+            many=True).to_representation(instance.ingredients)
+
+        data['is_favourited'] = (
+            FavouriteRecipe.objects.filter(user=user, recipe=instance).exists()
+            if user.is_authenticated else False)
         return data
+
+    def to_internal_value(self, data):
+        tags = data.pop('tags')
+        ingredients = data.pop('ingredients')
+
+        data = super().to_internal_value(data)
+        data['tags'] = tags
+        data['ingredients'] = ingredients
+        return data
+
+    def run_validators(self, value):
+        value['author'] = self.context['request'].user
+        return super().run_validators(value)
+
+    def create(self, validated_data):
+        tags = validated_data.pop('tags')
+        ingredients = validated_data.pop('ingredients')
+
+        recipe = Recipe.objects.create(**validated_data)
+        for tag in tags:
+            TagRecipe.objects.create(tag_id=tag, recipe=recipe)
+        for ingredient in ingredients:
+            Component.objects.create(recipe=recipe,
+                                     ingredient_id=ingredient['id'],
+                                     amount=ingredient['amount'])
+        return recipe
+
+    def __clear_components_and_tags__(self, instance):
+        TagRecipe.objects.filter(recipe=instance).delete()
+        Component.objects.filter(recipe=instance).delete()
+
+    def update(self, instance, validated_data):
+        tags = validated_data.pop('tags')
+        ingredients = validated_data.pop('ingredients')
+        self.__clear_components_and_tags__(instance)
+
+        instance.save(update_fields=validated_data)
+        for tag in tags:
+            TagRecipe.objects.create(tag_id=tag, recipe=instance)
+        for ingredient in ingredients:
+            Component.objects.create(recipe=instance,
+                                     ingredient_id=ingredient['id'],
+                                     amount=ingredient['amount'])
+        return super().update(instance, validated_data)
+
+
+class RecipeInListSerializer(serializers.ModelSerializer):
+    def to_representation(self, instance):
+        recipe = instance.recipe
+        return {'id': recipe.id, 'name': recipe.name,
+                'cooking_time': recipe.cooking_time}
+
+
+class FavouriteRecipeSerializer(RecipeInListSerializer):
+    class Meta:
+        model = FavouriteRecipe
+        fields = '__all__'
+
+
+class ShoppingCartSerializer(RecipeInListSerializer):
+    class Meta:
+        model = ShoppingCart
+        fields = '__all__'

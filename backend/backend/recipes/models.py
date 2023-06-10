@@ -58,6 +58,8 @@ class Recipe(models.Model):
         verbose_name = 'Рецепт'
         verbose_name_plural = 'Рецепты'
         ordering = ('name',)
+        constraints = (models.UniqueConstraint(
+            fields=('author', 'name'), name='unique_recipe'),)
 
     def __str__(self):
         return f'{self.name} от {self.author}'
@@ -76,6 +78,8 @@ class Component(models.Model):
     class Meta:
         verbose_name = 'Компонент'
         verbose_name_plural = 'Компоненты'
+        unique_together = ('recipe', 'ingredient')
+        ordering = ('recipe', 'ingredient')
 
     def __str__(self):
         return (f'{self.recipe} → {self.amount} '
@@ -91,6 +95,33 @@ class TagRecipe(models.Model):
     class Meta:
         verbose_name = 'Связь рецепта и тэга'
         verbose_name_plural = 'Связи рецептов и тэгов'
+        unique_together = ('recipe', 'tag')
 
     def __str__(self):
         return f'{self.recipe} → {self.tag}'
+
+
+class FavouriteRecipe(models.Model):
+    user = models.ForeignKey(to=User, on_delete=models.CASCADE,
+                             verbose_name='Пользователь')
+    recipe = models.ForeignKey(to=Recipe, on_delete=models.CASCADE,
+                               verbose_name='Рецепт')
+
+    class Meta:
+        verbose_name = 'Избранный рецепт'
+        verbose_name_plural = 'Избранные рецепты'
+        unique_together = ('user', 'recipe')
+        ordering = ('user', 'recipe')
+
+
+class ShoppingCart(models.Model):
+    user = models.ForeignKey(to=User, on_delete=models.CASCADE,
+                             verbose_name='Покупатель')
+    recipe = models.ForeignKey(to=Recipe, on_delete=models.CASCADE,
+                               verbose_name='Рецепт')
+
+    class Meta:
+        verbose_name = 'Рецепт в корзине'
+        verbose_name_plural = 'Рецепты в корзине'
+        unique_together = ('user', 'recipe')
+        ordering = ('user', 'recipe')

@@ -7,13 +7,15 @@ from rest_framework.decorators import (api_view, action,
                                        permission_classes)
 from rest_framework.response import Response
 
-from recipes.models import Ingredient, Recipe, Tag
+from recipes.models import (Ingredient, Recipe, Tag,
+                            FavouriteRecipe, ShoppingCart)
 
 from .pagination import PageLimitPagination
+from .permissions import IsAuthorOrReadOnly
 from .serializers import (TokenApproveSerializer, ChangePasswordSerializer,
-                          UserSerializer, AuthorSerializer,
+                          UserSerializer, AuthorSerializer, TagSerializer,
                           IngredientSerializer, RecipeSerializer,
-                          TagSerializer)
+                          FavouriteRecipeSerializer, ShoppingCartSerializer)
 from .utils import create_token, delete_token
 
 
@@ -24,22 +26,62 @@ class IngredientViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
                         viewsets.GenericViewSet):
     queryset = Ingredient.objects.all()
     serializer_class = IngredientSerializer
-    pagination_class = None
 
 
 class TagViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
                  viewsets.GenericViewSet):
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
-    pagination_class = None
 
 
 class RecipeViewSet(viewsets.ModelViewSet):
     queryset = Recipe.objects.all()
     serializer_class = RecipeSerializer
-    pagination_class = None
+    pagination_class = PageLimitPagination
     authentication_classes = (TokenAuthentication,)
-    permission_classes = (permissions.IsAuthenticatedOrReadOnly,)
+    permission_classes = (IsAuthorOrReadOnly,)
+
+    @action(methods=('POST', 'DELETE'), detail=True,
+            permission_classes=(permissions.IsAuthenticated,),
+            serializer_class=FavouriteRecipeSerializer)
+    def favourite(self, request, pk=None):
+        data = {'user': request.user.id, 'recipe': self.get_object().id}
+        favourite = self.get_serializer(data=data)
+
+        if request.method == 'POST':
+            if favourite.is_valid():
+                favourite.save()
+                return Response(favourite.data, status=status.HTTP_201_CREATED)
+            return Response(favourite.errors,
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        favourite = FavouriteRecipe.objects.filter(**data)
+        if favourite.exists():
+            favourite.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response('Рецепт не в избранном',
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    @action(methods=('POST', 'DELETE'), detail=True,
+            permission_classes=(permissions.IsAuthenticated,),
+            serializer_class=ShoppingCartSerializer)
+    def shopping_cart(self, request, pk=None):
+        data = {'user': request.user.id, 'recipe': self.get_object().id}
+        purchase = self.get_serializer(data=data)
+
+        if request.method == 'POST':
+            if purchase.is_valid():
+                purchase.save()
+                return Response(purchase.data, status=status.HTTP_201_CREATED)
+            return Response(purchase.errors,
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        purchase = ShoppingCart.objects.filter(**data)
+        if purchase.exists():
+            purchase.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response('Рецепт не в корзине',
+                        status=status.HTTP_400_BAD_REQUEST)
 
 
 class UserViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,

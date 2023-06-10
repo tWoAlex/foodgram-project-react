@@ -1,11 +1,12 @@
 from django.contrib import admin
 
-from .models import (Recipe, Ingredient, Component, Tag, TagRecipe)
+from .models import (Recipe, Ingredient, Component, Tag,
+                     TagRecipe, FavouriteRecipe, ShoppingCart)
 
 
 @admin.register(Recipe)
 class RecipeAdmin(admin.ModelAdmin):
-    pass
+    list_display = ('id', 'name', 'author')
 
 
 @admin.register(Ingredient)
@@ -26,3 +27,13 @@ class TagAdmin(admin.ModelAdmin):
 @admin.register(TagRecipe)
 class TagRecipeAdmin(admin.ModelAdmin):
     list_display = ('recipe', 'tag')
+
+
+@admin.register(FavouriteRecipe)
+class FavouriteRecipeAdmin(admin.ModelAdmin):
+    list_display = ('user', 'recipe')
+
+
+@admin.register(ShoppingCart)
+class ShoppingCartAdmin(admin.ModelAdmin):
+    list_display = ('user', 'recipe')
