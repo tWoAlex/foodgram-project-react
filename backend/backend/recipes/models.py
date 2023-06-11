@@ -49,6 +49,8 @@ class Recipe(models.Model):
                                related_name='recipes', verbose_name='Автор')
     name = models.CharField(max_length=200, verbose_name='Название')
     text = models.TextField(max_length=1024, verbose_name='Описание')
+    image = models.ImageField(upload_to='recipes/images/',
+                              verbose_name='Картинка')
     cooking_time = models.IntegerField(validators=(MinValueValidator(1),),
                                        verbose_name='Длительность')
     tags = models.ManyToManyField(to=Tag, through='TagRecipe',
@@ -103,8 +105,10 @@ class TagRecipe(models.Model):
 
 class FavouriteRecipe(models.Model):
     user = models.ForeignKey(to=User, on_delete=models.CASCADE,
-                             verbose_name='Пользователь')
+                             related_name='favourites',
+                             verbose_name='Пользователь',)
     recipe = models.ForeignKey(to=Recipe, on_delete=models.CASCADE,
+                               related_name='favourited_by',
                                verbose_name='Рецепт')
 
     class Meta:
@@ -116,8 +120,10 @@ class FavouriteRecipe(models.Model):
 
 class ShoppingCart(models.Model):
     user = models.ForeignKey(to=User, on_delete=models.CASCADE,
+                             related_name='purchases',
                              verbose_name='Покупатель')
     recipe = models.ForeignKey(to=Recipe, on_delete=models.CASCADE,
+                               related_name='in_shopping_cart',
                                verbose_name='Рецепт')
 
     class Meta:

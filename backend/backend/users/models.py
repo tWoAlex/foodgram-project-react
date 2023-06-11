@@ -2,6 +2,8 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.validators import UnicodeUsernameValidator
 
+from rest_framework.authtoken.models import Token
+
 
 class User(AbstractUser):
     class Roles(models.TextChoices):
@@ -27,6 +29,12 @@ class User(AbstractUser):
         if self.first_name:
             return f'{self.first_name} {self.last_name}'
         return self.username
+
+    def delete_token(self):
+        Token.objects.filter(user=self).delete()
+
+    def create_token(self):
+        return Token.objects.create(user=self)
 
 
 class Subscription(models.Model):

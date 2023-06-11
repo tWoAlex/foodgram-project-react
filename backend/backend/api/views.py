@@ -10,13 +10,12 @@ from rest_framework.response import Response
 from recipes.models import (Ingredient, Recipe, Tag,
                             FavouriteRecipe, ShoppingCart)
 
-from .pagination import PageLimitPagination
+from .pagination import PageLimitPagination, RecipePagination
 from .permissions import IsAuthorOrReadOnly
 from .serializers import (TokenApproveSerializer, ChangePasswordSerializer,
                           UserSerializer, AuthorSerializer, TagSerializer,
                           IngredientSerializer, RecipeSerializer,
                           FavouriteRecipeSerializer, ShoppingCartSerializer)
-from .utils import create_token, delete_token
 
 
 User = get_user_model()
@@ -37,7 +36,7 @@ class TagViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
 class RecipeViewSet(viewsets.ModelViewSet):
     queryset = Recipe.objects.all()
     serializer_class = RecipeSerializer
-    pagination_class = PageLimitPagination
+    pagination_class = RecipePagination
     authentication_classes = (TokenAuthentication,)
     permission_classes = (IsAuthorOrReadOnly,)
 
@@ -158,8 +157,8 @@ def invoke_token(request):
     user = get_object_or_404(User, email=serializer.validated_data['email'],
                              password=serializer.validated_data['password'])
 
-    delete_token(user)
-    token = create_token(user)
+    user.delete_token()
+    token = user.create_token()
     return Response({'auth_token': token.key}, status.HTTP_201_CREATED)
 
 
@@ -167,5 +166,5 @@ def invoke_token(request):
 @authentication_classes((TokenAuthentication,))
 @permission_classes((permissions.IsAuthenticated,))
 def revoke_token(request):
-    delete_token(request.user)
+    request.user.delete_token()
     return Response(status=status.HTTP_204_NO_CONTENT)

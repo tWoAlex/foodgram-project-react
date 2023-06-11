@@ -1,8 +1,10 @@
-from django.shortcuts import get_object_or_404
+import base64
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
+from django.core.files.base import ContentFile
+
 from rest_framework import serializers
-from rest_framework.fields import empty
 from rest_framework.validators import UniqueTogetherValidator
 
 from recipes.models import (Component, Ingredient, Recipe,
@@ -92,6 +94,16 @@ class ComponentSerializer(IngredientSerializer):
         return data
 
 
+class Base64ImageField(serializers.ImageField):
+    def to_internal_value(self, data):
+        if isinstance(data, str) and data.startswith('data:image'):
+            format, image_str = data.split(';base64,')
+            ext = format.split('/')[-1]
+            data = ContentFile(base64.b64decode(image_str),
+                               name='recipe.' + ext)
+        return super().to_internal_value(data)
+
+
 class RecipeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipe
@@ -102,6 +114,7 @@ class RecipeSerializer(serializers.ModelSerializer):
     author = UserSerializer(read_only=True)
     tags = TagSerializer(many=True, read_only=True)
     ingredients = ComponentSerializer(many=True, read_only=True)
+    image = Base64ImageField(required=True)
 
     def to_representation(self, instance):
         user = self.context['request'].user
@@ -114,6 +127,9 @@ class RecipeSerializer(serializers.ModelSerializer):
 
         data['is_favourited'] = (
             FavouriteRecipe.objects.filter(user=user, recipe=instance).exists()
+            if user.is_authenticated else False)
+        data['is_in_shopping_cart'] = (
+            ShoppingCart.objects.filter(user=user, recipe=instance).exists()
             if user.is_authenticated else False)
         return data
 
@@ -150,7 +166,9 @@ class RecipeSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         tags = validated_data.pop('tags')
         ingredients = validated_data.pop('ingredients')
+
         self.__clear_components_and_tags__(instance)
+        instance.image.delete()
 
         instance.save(update_fields=validated_data)
         for tag in tags:
