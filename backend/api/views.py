@@ -1,22 +1,24 @@
+from io import BytesIO
+
 from django.contrib.auth import get_user_model
+from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.authentication import TokenAuthentication
-from rest_framework.decorators import (api_view, action,
+from rest_framework.decorators import (action, api_view,
                                        authentication_classes,
                                        permission_classes)
 from rest_framework.response import Response
 
-from recipes.models import (Ingredient, Recipe, Tag,
-                            FavouriteRecipe, ShoppingCart)
-
+from recipes.models import (FavouriteRecipe, Ingredient, Recipe, ShoppingCart,
+                            Tag)
 from .pagination import PageLimitPagination, RecipePagination
 from .permissions import IsAuthorOrReadOnly
-from .serializers import (TokenApproveSerializer, ChangePasswordSerializer,
-                          UserSerializer, AuthorSerializer, TagSerializer,
-                          IngredientSerializer, RecipeSerializer,
-                          FavouriteRecipeSerializer, ShoppingCartSerializer)
-
+from .serializers import (AuthorSerializer, ChangePasswordSerializer,
+                          FavouriteRecipeSerializer, IngredientSerializer,
+                          RecipeSerializer, ShoppingCartSerializer,
+                          TagSerializer, TokenApproveSerializer,
+                          UserSerializer)
 
 User = get_user_model()
 
@@ -81,6 +83,27 @@ class RecipeViewSet(viewsets.ModelViewSet):
             return Response(status=status.HTTP_204_NO_CONTENT)
         return Response('Рецепт не в корзине',
                         status=status.HTTP_400_BAD_REQUEST)
+
+    @action(methods=('GET',), detail=False,
+            permission_classes=(permissions.IsAuthenticated,),)
+    def download_shopping_cart(self, request):
+        filename = 'Shopping cart.txt'
+        purchases = ShoppingCart.objects.filter(user=request.user)
+        recipes = [purchase.recipe for purchase in purchases]
+
+        purchases = dict()
+        for recipe in recipes:
+            for component in recipe.ingredients.all():
+                amount = component.amount
+                ingredient = component.ingredient
+                purchases[ingredient] = (purchases[ingredient] + amount
+                                         if ingredient in purchases
+                                         else amount)
+
+        result = [f'{str(ingredient)} {amount} {ingredient.measurement_unit}'
+                  for ingredient, amount in purchases.items()]
+        result = BytesIO('\n'.join(result).encode())
+        return FileResponse(result, filename=filename, as_attachment=True)
 
 
 class UserViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
@@ -157,7 +180,6 @@ def invoke_token(request):
     user = get_object_or_404(User, email=serializer.validated_data['email'],
                              password=serializer.validated_data['password'])
 
-    user.delete_token()
     token = user.create_token()
     return Response({'auth_token': token.key}, status.HTTP_201_CREATED)
 

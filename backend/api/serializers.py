@@ -3,14 +3,11 @@ import base64
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.files.base import ContentFile
-
 from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator
 
-from recipes.models import (Component, Ingredient, Recipe,
-                            Tag, TagRecipe,
-                            FavouriteRecipe, ShoppingCart)
-
+from recipes.models import (Component, FavouriteRecipe, Ingredient, Recipe,
+                            ShoppingCart, Tag, TagRecipe)
 
 User = get_user_model()
 
@@ -160,8 +157,8 @@ class RecipeSerializer(serializers.ModelSerializer):
         return recipe
 
     def __clear_components_and_tags__(self, instance):
-        TagRecipe.objects.filter(recipe=instance).delete()
-        Component.objects.filter(recipe=instance).delete()
+        instance.tags.clear()
+        instance.ingredients.all().delete()
 
     def update(self, instance, validated_data):
         tags = validated_data.pop('tags')
