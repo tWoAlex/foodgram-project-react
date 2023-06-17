@@ -17,14 +17,13 @@ DJANGO_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 ]
-
 THIRD_PARTY_APPS = [
     'rest_framework',
     'rest_framework.authtoken',
     'django_filters',
     'colorfield',
+    # 'corsheaders',
 ]
-
 LOCAL_APPS = [
     'api',
     'recipes',
@@ -35,6 +34,7 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 
 MIDDLEWARE = [
+    # 'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -112,3 +112,6 @@ REST_FRAMEWORK = {
 }
 
 AUTH_USER_MODEL = 'users.User'
+
+# CORS_ORIGIN_ALLOW_ALL = False
+# CORS_URLS_REGEX = 
