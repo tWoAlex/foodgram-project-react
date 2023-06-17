@@ -1,5 +1,6 @@
 import base64
 
+from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.files.base import ContentFile
@@ -16,11 +17,20 @@ class TokenApproveSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
     password = serializers.CharField(required=True)
 
+    def validate(self, attrs):
+        data = super().validate(attrs)
+
+        email = data['email']
+        password = data['password']
+        user = get_object_or_404(User, email=email)
+
+        if not user.check_password(password):
+            raise serializers.ValidationError('Неверный пароль')
+        data['user'] = user
+        return data
+
 
 class ChangePasswordSerializer(serializers.Serializer):
-    class Meta:
-        model = User
-
     current_password = serializers.CharField(required=True)
     new_password = serializers.CharField(required=True,
                                          validators=(validate_password,))
