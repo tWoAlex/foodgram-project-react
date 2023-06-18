@@ -23,9 +23,9 @@ jobs:
     - name: Push to Docker Hub
       uses: docker/build-push-action@v4
       with:
-        file: ./api_yamdb/Dockerfile
+        file: ./backend/Dockerfile
         push: true
-        tags: twoalex/api_yamdb:latest
+        tags: twoalex/foodgram_backend:latest
 
   send_message:
     name: Send message to authors telegram
