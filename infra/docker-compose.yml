@@ -9,7 +9,7 @@ services:
       - ./.env
 
   backend:
-    image: twoalex/foodgram_backend
+    image: twoalex/foodgram_backend:latest
     restart: always
     volumes:
       - static_value:/app/static/
