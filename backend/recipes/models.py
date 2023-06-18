@@ -17,6 +17,7 @@ class Ingredient(models.Model):
         verbose_name = 'Ингредиент'
         verbose_name_plural = 'Ингредиенты'
         ordering = ('name',)
+        unique_together = ('name', 'measurement_unit')
 
     def __str__(self):
         return self.name
