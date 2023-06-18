@@ -12,7 +12,7 @@ class Ingredient(models.Model):
         KG = 'кг', 'кг'
         G = 'г', 'г'
         NUM = 'шт', 'шт'
-    name = models.CharField(max_length=50, unique=True,
+    name = models.CharField(max_length=100, unique=True,
                             verbose_name='Ингредиент')
     measurement_unit = models.CharField(choices=MeasurementUnits.choices,
                                         default=MeasurementUnits.NUM,
