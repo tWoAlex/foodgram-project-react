@@ -8,15 +8,9 @@ User = get_user_model()
 
 
 class Ingredient(models.Model):
-    class MeasurementUnits(models.TextChoices):
-        KG = 'кг', 'кг'
-        G = 'г', 'г'
-        NUM = 'шт', 'шт'
     name = models.CharField(max_length=100, unique=True,
                             verbose_name='Ингредиент')
-    measurement_unit = models.CharField(choices=MeasurementUnits.choices,
-                                        default=MeasurementUnits.NUM,
-                                        max_length=3,
+    measurement_unit = models.CharField(max_length=20,
                                         verbose_name='Единица измерения')
 
     class Meta:
