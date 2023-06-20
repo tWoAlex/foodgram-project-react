@@ -52,7 +52,7 @@ class Recipe(models.Model):
     class Meta:
         verbose_name = 'Рецепт'
         verbose_name_plural = 'Рецепты'
-        ordering = ('name',)
+        ordering = ('-pk',)
         constraints = (models.UniqueConstraint(
             fields=('author', 'name'), name='unique_recipe'),)
 
@@ -96,12 +96,12 @@ class TagRecipe(models.Model):
         return f'{self.recipe} → {self.tag}'
 
 
-class FavouriteRecipe(models.Model):
+class FavoriteRecipe(models.Model):
     user = models.ForeignKey(to=User, on_delete=models.CASCADE,
-                             related_name='favourites',
+                             related_name='favorites',
                              verbose_name='Пользователь',)
     recipe = models.ForeignKey(to=Recipe, on_delete=models.CASCADE,
-                               related_name='favourited_by',
+                               related_name='favorited_by',
                                verbose_name='Рецепт')
 
     class Meta:
@@ -113,7 +113,7 @@ class FavouriteRecipe(models.Model):
 
 class ShoppingCart(models.Model):
     user = models.ForeignKey(to=User, on_delete=models.CASCADE,
-                             related_name='purchases',
+                             related_name='shopping_cart',
                              verbose_name='Покупатель')
     recipe = models.ForeignKey(to=Recipe, on_delete=models.CASCADE,
                                related_name='in_shopping_cart',

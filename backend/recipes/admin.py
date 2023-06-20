@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import (Component, FavouriteRecipe, Ingredient, Recipe,
+from .models import (Component, FavoriteRecipe, Ingredient, Recipe,
                      ShoppingCart, Tag, TagRecipe)
 
 
@@ -29,8 +29,8 @@ class TagRecipeAdmin(admin.ModelAdmin):
     list_display = ('recipe', 'tag')
 
 
-@admin.register(FavouriteRecipe)
-class FavouriteRecipeAdmin(admin.ModelAdmin):
+@admin.register(FavoriteRecipe)
+class FavoriteRecipeAdmin(admin.ModelAdmin):
     list_display = ('user', 'recipe')
 
 

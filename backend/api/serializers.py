@@ -7,8 +7,9 @@ from django.core.files.base import ContentFile
 from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator
 
-from recipes.models import (Component, FavouriteRecipe, Ingredient, Recipe,
+from recipes.models import (Component, FavoriteRecipe, Ingredient, Recipe,
                             ShoppingCart, Tag, TagRecipe)
+
 
 User = get_user_model()
 
@@ -72,7 +73,8 @@ class UserSerializer(serializers.ModelSerializer):
 class AuthorSerializer(UserSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        data['recipes'] = []
+        data['recipes'] = RecipeSerializer(many=True).to_representation(
+            instance.recipes.all())
         return data
 
 
@@ -114,7 +116,7 @@ class Base64ImageField(serializers.ImageField):
 class RecipeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipe
-        fields = '__all__'
+        fields = ('author', 'name', 'text', 'image', 'cooking_time', 'tags')
         validators = (UniqueTogetherValidator(
             queryset=Recipe.objects.all(), fields=('author', 'name')),)
 
@@ -132,8 +134,8 @@ class RecipeSerializer(serializers.ModelSerializer):
         data['ingredients'] = ComponentSerializer(
             many=True).to_representation(instance.ingredients)
 
-        data['is_favourited'] = (
-            FavouriteRecipe.objects.filter(user=user, recipe=instance).exists()
+        data['is_favorited'] = (
+            FavoriteRecipe.objects.filter(user=user, recipe=instance).exists()
             if user.is_authenticated else False)
         data['is_in_shopping_cart'] = (
             ShoppingCart.objects.filter(user=user, recipe=instance).exists()
@@ -194,9 +196,9 @@ class RecipeInListSerializer(serializers.ModelSerializer):
                 'cooking_time': recipe.cooking_time}
 
 
-class FavouriteRecipeSerializer(RecipeInListSerializer):
+class FavoriteRecipeSerializer(RecipeInListSerializer):
     class Meta:
-        model = FavouriteRecipe
+        model = FavoriteRecipe
         fields = '__all__'
 
 

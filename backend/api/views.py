@@ -2,23 +2,26 @@ from io import BytesIO
 
 from django.contrib.auth import get_user_model
 from django.http import FileResponse
-from django.shortcuts import get_object_or_404
 from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import (action, api_view,
                                        authentication_classes,
                                        permission_classes)
 from rest_framework.response import Response
+from django_filters.rest_framework import DjangoFilterBackend
 
-from recipes.models import (FavouriteRecipe, Ingredient, Recipe, ShoppingCart,
+from recipes.models import (FavoriteRecipe, Ingredient, Recipe, ShoppingCart,
                             Tag)
+from .filters import RecipeFilterSet
 from .pagination import PageLimitPagination, RecipePagination
 from .permissions import IsAuthorOrReadOnly
 from .serializers import (AuthorSerializer, ChangePasswordSerializer,
-                          FavouriteRecipeSerializer, IngredientSerializer,
+                          FavoriteRecipeSerializer, IngredientSerializer,
                           RecipeSerializer, ShoppingCartSerializer,
                           TagSerializer, TokenApproveSerializer,
                           UserSerializer)
+from .utils import shopping_list
+
 
 User = get_user_model()
 
@@ -72,26 +75,26 @@ class UserViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
     def subscribe(self, request, pk=None):
         subscriber = request.user
         author = self.get_object()
-        subscribed = author in subscriber.subscribed.all()
+        subscribed = author in subscriber.subscriptions.all()
 
         if request.method == 'POST':
             if author == subscriber:
                 return Response(
-                    {'errors': 'Нельзя подписаться на самого себя'},
+                    {'errors': 'Нельзя подписаться на самого себя.'},
                     status=status.HTTP_400_BAD_REQUEST)
             if subscribed:
                 return Response(
-                    {'errors': 'Уже подписан'},
+                    {'errors': 'Вы уже подписаны на этого автора.'},
                     status=status.HTTP_400_BAD_REQUEST)
 
-            subscriber.subscribed.add(author)
+            subscriber.subscriptions.add(author)
             serializer = self.get_serializer(author)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         if not subscribed:
-            return Response({'errors': 'Не подписан на данного автора'},
+            return Response({'errors': 'Вы не подписаны на данного автора.'},
                             status=status.HTTP_400_BAD_REQUEST)
-        subscriber.subscribed.remove(author)
+        subscriber.subscriptions.remove(author)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(methods=('GET',), detail=False,
@@ -100,7 +103,7 @@ class UserViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
             serializer_class=AuthorSerializer,
             pagination_class=PageLimitPagination)
     def subscriptions(self, request):
-        subscriptions = request.user.subscribed.all()
+        subscriptions = request.user.subscriptions.all()
         page = self.paginate_queryset(subscriptions)
         serializer = self.get_serializer(page, many=True)
         return self.get_paginated_response(serializer.data)
@@ -119,29 +122,32 @@ class TagViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
 
 
 class RecipeViewSet(viewsets.ModelViewSet):
-    queryset = Recipe.objects.all()
-    serializer_class = RecipeSerializer
-    pagination_class = RecipePagination
     authentication_classes = (TokenAuthentication,)
     permission_classes = (IsAuthorOrReadOnly,)
 
+    queryset = Recipe.objects.all()
+    serializer_class = RecipeSerializer
+    pagination_class = RecipePagination
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = RecipeFilterSet
+
     @action(methods=('POST', 'DELETE'), detail=True,
             permission_classes=(permissions.IsAuthenticated,),
-            serializer_class=FavouriteRecipeSerializer)
-    def favourite(self, request, pk=None):
+            serializer_class=FavoriteRecipeSerializer)
+    def favorite(self, request, pk=None):
         data = {'user': request.user.id, 'recipe': self.get_object().id}
-        favourite = self.get_serializer(data=data)
+        favorite = self.get_serializer(data=data)
 
         if request.method == 'POST':
-            if favourite.is_valid():
-                favourite.save()
-                return Response(favourite.data, status=status.HTTP_201_CREATED)
-            return Response(favourite.errors,
+            if favorite.is_valid():
+                favorite.save()
+                return Response(favorite.data, status=status.HTTP_201_CREATED)
+            return Response(favorite.errors,
                             status=status.HTTP_400_BAD_REQUEST)
 
-        favourite = FavouriteRecipe.objects.filter(**data)
-        if favourite.exists():
-            favourite.delete()
+        favorite = FavoriteRecipe.objects.filter(**data)
+        if favorite.exists():
+            favorite.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
         return Response('Рецепт не в избранном',
                         status=status.HTTP_400_BAD_REQUEST)
@@ -171,19 +177,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
             permission_classes=(permissions.IsAuthenticated,),)
     def download_shopping_cart(self, request):
         filename = 'Shopping cart.txt'
-        purchases = ShoppingCart.objects.filter(user=request.user)
-        recipes = [purchase.recipe for purchase in purchases]
 
-        purchases = dict()
-        for recipe in recipes:
-            for component in recipe.ingredients.all():
-                amount = component.amount
-                ingredient = component.ingredient
-                purchases[ingredient] = (purchases[ingredient] + amount
-                                         if ingredient in purchases
-                                         else amount)
-
-        result = [f'{str(ingredient)} {amount} {ingredient.measurement_unit}'
-                  for ingredient, amount in purchases.items()]
-        result = BytesIO('\n'.join(result).encode())
-        return FileResponse(result, filename=filename, as_attachment=True)
+        purchases = shopping_list(request.user)
+        return FileResponse(BytesIO(purchases.encode()),
+                            filename=filename, as_attachment=True)
