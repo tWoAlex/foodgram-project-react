@@ -120,6 +120,8 @@ class IngredientViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
                         viewsets.GenericViewSet):
     queryset = Ingredient.objects.all()
     serializer_class = IngredientSerializer
+
+    filter_backends = (DjangoFilterBackend,)
     filterset_class = IngredientFilterSet
 
 
@@ -136,6 +138,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
     queryset = Recipe.objects.all()
     serializer_class = RecipeSerializer
     pagination_class = RecipePagination
+
     filter_backends = (DjangoFilterBackend,)
     filterset_class = RecipeFilterSet
 
