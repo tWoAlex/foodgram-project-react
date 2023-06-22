@@ -14,7 +14,7 @@ from recipes.models import (FavoriteRecipe, Ingredient, Recipe, ShoppingCart,
                             Tag)
 from .filters import RecipeFilterSet
 from .pagination import PageLimitPagination, RecipePagination
-from .permissions import IsAuthorOrReadOnly
+from .permissions import IsAuthorOrReadOnly, IsAuthenticatedAndActiveOrReadOnly
 from .serializers import (AuthorSerializer, ChangePasswordSerializer,
                           FavoriteRecipeSerializer, IngredientSerializer,
                           RecipeSerializer, ShoppingCartSerializer,
@@ -30,6 +30,11 @@ User = get_user_model()
 def invoke_token(request):
     serializer = TokenApproveSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
+
+    if serializer.validated_data['user'].is_blocked:
+        return Response('Вы заблокированы',
+                        status=status.HTTP_401_UNAUTHORIZED)
+
     token = serializer.validated_data['user'].create_token()
     return Response({'auth_token': token.key}, status.HTTP_201_CREATED)
 
@@ -44,9 +49,10 @@ def revoke_token(request):
 
 class UserViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
                   mixins.CreateModelMixin, viewsets.GenericViewSet):
+    authentication_classes = (TokenAuthentication,)
+
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    authentication_classes = (TokenAuthentication,)
     pagination_class = PageLimitPagination
 
     @action(methods=('GET',), detail=False,
@@ -58,7 +64,7 @@ class UserViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
 
     @action(methods=('POST',), detail=False,
             authentication_classes=(TokenAuthentication,),
-            permission_classes=(permissions.IsAuthenticated,),
+            permission_classes=(IsAuthenticatedAndActiveOrReadOnly,),
             serializer_class=ChangePasswordSerializer)
     def set_password(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -70,12 +76,12 @@ class UserViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
 
     @action(methods=('POST', 'DELETE'), detail=True,
             authentication_classes=(TokenAuthentication,),
-            permission_classes=(permissions.IsAuthenticated,),
+            permission_classes=(IsAuthenticatedAndActiveOrReadOnly,),
             serializer_class=AuthorSerializer)
     def subscribe(self, request, pk=None):
         subscriber = request.user
         author = self.get_object()
-        subscribed = author in subscriber.subscriptions.all()
+        subscribed = author in subscriber.subscribed.all()
 
         if request.method == 'POST':
             if author == subscriber:
@@ -87,24 +93,25 @@ class UserViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
                     {'errors': 'Вы уже подписаны на этого автора.'},
                     status=status.HTTP_400_BAD_REQUEST)
 
-            subscriber.subscriptions.add(author)
+            subscriber.subscribed.add(author)
             serializer = self.get_serializer(author)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         if not subscribed:
             return Response({'errors': 'Вы не подписаны на данного автора.'},
                             status=status.HTTP_400_BAD_REQUEST)
-        subscriber.subscriptions.remove(author)
+        subscriber.subscribed.remove(author)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(methods=('GET',), detail=False,
             authentication_classes=(TokenAuthentication,),
-            permission_classes=(permissions.IsAuthenticated,),
+            permission_classes=(IsAuthenticatedAndActiveOrReadOnly,),
             serializer_class=AuthorSerializer,
             pagination_class=PageLimitPagination)
     def subscriptions(self, request):
-        subscriptions = request.user.subscriptions.all()
+        subscriptions = request.user.subscribed.all()
         page = self.paginate_queryset(subscriptions)
+
         serializer = self.get_serializer(page, many=True)
         return self.get_paginated_response(serializer.data)
 
@@ -132,7 +139,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
     filterset_class = RecipeFilterSet
 
     @action(methods=('POST', 'DELETE'), detail=True,
-            permission_classes=(permissions.IsAuthenticated,),
+            permission_classes=(IsAuthenticatedAndActiveOrReadOnly,),
             serializer_class=FavoriteRecipeSerializer)
     def favorite(self, request, pk=None):
         data = {'user': request.user.id, 'recipe': self.get_object().id}
@@ -141,6 +148,9 @@ class RecipeViewSet(viewsets.ModelViewSet):
         if request.method == 'POST':
             if favorite.is_valid():
                 favorite.save()
+                print('saved')
+                data = favorite.data
+                print(data)
                 return Response(favorite.data, status=status.HTTP_201_CREATED)
             return Response(favorite.errors,
                             status=status.HTTP_400_BAD_REQUEST)
@@ -153,7 +163,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
                         status=status.HTTP_400_BAD_REQUEST)
 
     @action(methods=('POST', 'DELETE'), detail=True,
-            permission_classes=(permissions.IsAuthenticated,),
+            permission_classes=(IsAuthenticatedAndActiveOrReadOnly,),
             serializer_class=ShoppingCartSerializer)
     def shopping_cart(self, request, pk=None):
         data = {'user': request.user.id, 'recipe': self.get_object().id}
@@ -174,7 +184,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
                         status=status.HTTP_400_BAD_REQUEST)
 
     @action(methods=('GET',), detail=False,
-            permission_classes=(permissions.IsAuthenticated,),)
+            permission_classes=(IsAuthenticatedAndActiveOrReadOnly,),)
     def download_shopping_cart(self, request):
         filename = 'Shopping cart.txt'
 

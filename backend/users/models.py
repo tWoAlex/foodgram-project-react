@@ -9,20 +9,32 @@ class User(AbstractUser):
         ADMIN = 'admin', 'Админ'
         USER = 'user', 'Пользователь'
 
+    class Statuses(models.TextChoices):
+        ACTIVE = 'active', 'Активен'
+        BLOCKED = 'blocked', 'Заблокирован'
+
+    role = models.CharField(choices=Roles.choices, default=Roles.USER,
+                            max_length=5, verbose_name='Роль')
+    status = models.CharField(choices=Statuses.choices,
+                              default=Statuses.ACTIVE, max_length=7,
+                              verbose_name='Статус')
+
     email = models.EmailField(unique=True, verbose_name='E-Mail')
     username = models.CharField(max_length=64, unique=True,
                                 verbose_name='Логин',
                                 validators=(UnicodeUsernameValidator(),))
     first_name = models.CharField(max_length=50, verbose_name='Имя')
     last_name = models.CharField(max_length=50, verbose_name='Фамилия')
-    role = models.CharField(choices=Roles.choices, default=Roles.USER,
-                            max_length=5, verbose_name='Роль')
     subscribed = models.ManyToManyField(to='self', through='Subscription',
                                         symmetrical=False,)
 
     @property
     def is_admin(self):
         return self.role == self.Roles.ADMIN
+
+    @property
+    def is_blocked(self):
+        return self.status == self.Statuses.BLOCKED
 
     def __str__(self):
         if self.first_name:

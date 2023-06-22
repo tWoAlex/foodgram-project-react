@@ -17,7 +17,9 @@ def shopping_list(user) -> str:
     result = [f'{str(ingredient)} {amount} {ingredient.measurement_unit}'
               for ingredient, amount in purchases.items()]
 
-    width = max(map(len, result))
-    width = max(width, len(header))
-    result = [header, '=' * width] + result + ['=' * width]
-    return '\n'.join(result)
+    if result:
+        width = max(map(len, result))
+        width = max(width, len(header))
+        result = [header, '=' * width] + result + ['=' * width]
+        return '\n'.join(result)
+    return 'Список покупок пуст :('

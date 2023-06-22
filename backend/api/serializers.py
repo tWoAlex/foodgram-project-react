@@ -70,14 +70,6 @@ class UserSerializer(serializers.ModelSerializer):
         return data
 
 
-class AuthorSerializer(UserSerializer):
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        data['recipes'] = RecipeSerializer(many=True).to_representation(
-            instance.recipes.all())
-        return data
-
-
 class IngredientSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ingredient
@@ -116,7 +108,8 @@ class Base64ImageField(serializers.ImageField):
 class RecipeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipe
-        fields = ('author', 'name', 'text', 'image', 'cooking_time', 'tags')
+        fields = ('author', 'name', 'text', 'image', 'cooking_time',
+                  'tags', 'ingredients')
         validators = (UniqueTogetherValidator(
             queryset=Recipe.objects.all(), fields=('author', 'name')),)
 
@@ -190,19 +183,34 @@ class RecipeSerializer(serializers.ModelSerializer):
 
 
 class RecipeInListSerializer(serializers.ModelSerializer):
-    def to_representation(self, instance):
-        recipe = instance.recipe
-        return {'id': recipe.id, 'name': recipe.name,
-                'cooking_time': recipe.cooking_time}
+    class Meta:
+        model = Recipe
+        fields = ('id', 'name', 'image', 'cooking_time')
+        read_only_fields = fields
 
 
-class FavoriteRecipeSerializer(RecipeInListSerializer):
+class FavoriteRecipeSerializer(serializers.ModelSerializer):
     class Meta:
         model = FavoriteRecipe
         fields = '__all__'
 
+    def to_representation(self, instance):
+        return RecipeInListSerializer(instance.recipe).data
 
-class ShoppingCartSerializer(RecipeInListSerializer):
+
+class ShoppingCartSerializer(serializers.ModelSerializer):
     class Meta:
         model = ShoppingCart
         fields = '__all__'
+
+    def to_representation(self, instance):
+        return RecipeInListSerializer(instance.recipe).data
+
+
+class AuthorSerializer(UserSerializer):
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['recipes'] = RecipeInListSerializer(
+            instance.recipes.all(), many=True).data
+        data['recipes_count'] = len(data['recipes'])
+        return data

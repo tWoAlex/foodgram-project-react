@@ -11,3 +11,12 @@ class IsAuthorOrReadOnly(permissions.IsAuthenticatedOrReadOnly):
                      else False)
 
         return is_author or request.method == 'GET'
+
+
+class IsAuthenticatedAndActiveOrReadOnly(permissions.IsAuthenticated):
+    message = 'Вы заблокированы'
+
+    def has_object_permission(self, request, view, obj):
+        allowed = super().has_object_permission(request, view, obj)
+        return (not request.user.is_blocked and allowed
+                or request.method == 'GET')

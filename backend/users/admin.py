@@ -9,12 +9,14 @@ User = get_user_model()
 
 @admin.register(User)
 class UserAdmin(admin.ModelAdmin):
-    fields = ('email', 'role', 'first_name', 'last_name')
-    list_display = ('username', 'email', 'role', 'first_name', 'last_name')
-    list_editable = ('role',)
-    list_filter = ('role',)
+    fields = ('role', 'status', 'password')
+    list_display = ('username', 'first_name', 'last_name', 'email',
+                    'role', 'status')
+    list_editable = ('role', 'status')
+    list_filter = ('role', 'status')
+    search_fields = ('email', 'username')
 
 
 @admin.register(Subscription)
 class SubscriptionAdmin(admin.ModelAdmin):
-    pass
+    search_fields = ('subscriber', 'author')
