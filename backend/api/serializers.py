@@ -108,7 +108,8 @@ class Base64ImageField(serializers.ImageField):
 class RecipeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipe
-        fields = ('author', 'name', 'text', 'image', 'cooking_time',
+        fields = ('id', 'author',
+                  'name', 'text', 'image', 'cooking_time',
                   'tags', 'ingredients')
         validators = (UniqueTogetherValidator(
             queryset=Recipe.objects.all(), fields=('author', 'name')),)

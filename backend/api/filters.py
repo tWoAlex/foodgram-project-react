@@ -6,3 +6,8 @@ class RecipeFilterSet(filters.FilterSet):
                                   lookup_expr='exact')
     tags = filters.CharFilter(field_name='tags__slug',
                               lookup_expr='exact')
+
+
+class IngredientFilterSet(filters.FilterSet):
+    name = filters.CharFilter(field_name='name',
+                              lookup_expr='icontains')

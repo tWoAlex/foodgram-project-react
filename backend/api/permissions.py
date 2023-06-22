@@ -18,5 +18,5 @@ class IsAuthenticatedAndActiveOrReadOnly(permissions.IsAuthenticated):
 
     def has_object_permission(self, request, view, obj):
         allowed = super().has_object_permission(request, view, obj)
-        return (not request.user.is_blocked and allowed
+        return ((not request.user.is_blocked) and allowed
                 or request.method == 'GET')
