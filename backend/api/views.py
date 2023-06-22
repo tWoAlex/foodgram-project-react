@@ -12,7 +12,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from recipes.models import (FavoriteRecipe, Ingredient, Recipe, ShoppingCart,
                             Tag)
-from .filters import RecipeFilterSet
+from .filters import IngredientFilterSet, RecipeFilterSet
 from .pagination import PageLimitPagination, RecipePagination
 from .permissions import IsAuthorOrReadOnly, IsAuthenticatedAndActiveOrReadOnly
 from .serializers import (AuthorSerializer, ChangePasswordSerializer,
@@ -120,6 +120,7 @@ class IngredientViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
                         viewsets.GenericViewSet):
     queryset = Ingredient.objects.all()
     serializer_class = IngredientSerializer
+    filterset_class = IngredientFilterSet
 
 
 class TagViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,

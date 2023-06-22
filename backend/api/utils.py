@@ -16,6 +16,7 @@ def shopping_list(user) -> str:
                                      if ingredient in purchases else amount)
     result = [f'{str(ingredient)} {amount} {ingredient.measurement_unit}'
               for ingredient, amount in purchases.items()]
+    result = sorted(result)
 
     if result:
         width = max(map(len, result))
