@@ -36,7 +36,7 @@ jobs:
 
         script: |
           cd ${{ secrets.INFRA_DIRECTORY }}
-          sudo docker pull twoalex/foodgram_backend
+          sudo docker pull twoalex/foodgram_backend:latest
           sudo docker-compose stop
           sudo docker-compose up -d
 
