@@ -20,6 +20,13 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
+    - name: Push to Docker Hub
+      uses: docker/build-push-action@v4
+      with:
+        file: ./backend/Dockerfile
+        push: true
+        tags: twoalex/foodgram_backend:latest
+
   deploy:
     name: Deploying actual version to server
     runs-on: ubuntu-latest
