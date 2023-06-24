@@ -14,35 +14,6 @@ from recipes.models import (Component, FavoriteRecipe, Ingredient, Recipe,
 User = get_user_model()
 
 
-class TokenApproveSerializer(serializers.Serializer):
-    email = serializers.EmailField(required=True)
-    password = serializers.CharField(required=True)
-
-    def validate(self, attrs):
-        data = super().validate(attrs)
-
-        email = data['email']
-        password = data['password']
-        user = get_object_or_404(User, email=email)
-
-        if not user.check_password(password):
-            raise serializers.ValidationError('Неверный пароль')
-        data['user'] = user
-        return data
-
-
-class ChangePasswordSerializer(serializers.Serializer):
-    current_password = serializers.CharField(required=True)
-    new_password = serializers.CharField(required=True,
-                                         validators=(validate_password,))
-
-    def validate_current_password(self, value):
-        user = self.context['request'].user
-        if not user.check_password(value):
-            raise serializers.ValidationError('Неверный пароль')
-        return value
-
-
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(required=True,
                                      validators=(validate_password,))
@@ -209,6 +180,8 @@ class ShoppingCartSerializer(serializers.ModelSerializer):
 
 
 class AuthorSerializer(UserSerializer):
+    read_only_fields = '__all__'
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data['recipes'] = RecipeInListSerializer(

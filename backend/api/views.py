@@ -1,7 +1,8 @@
 from io import BytesIO
 
-from django.contrib.auth import get_user_model
 from django.http import FileResponse
+from django.shortcuts import get_object_or_404
+from django.contrib.auth import get_user_model
 from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import (action, api_view,
@@ -10,40 +11,50 @@ from rest_framework.decorators import (action, api_view,
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 
+from users.models import Subscription
 from recipes.models import (FavoriteRecipe, Ingredient, Recipe, ShoppingCart,
                             Tag)
 from .filters import IngredientFilterSet, RecipeFilterSet
-from .pagination import PageLimitPagination, RecipePagination
-from .permissions import IsAuthorOrReadOnly, IsAuthenticatedAndActiveOrReadOnly
-from .serializers import (AuthorSerializer, ChangePasswordSerializer,
-                          FavoriteRecipeSerializer, IngredientSerializer,
-                          RecipeSerializer, ShoppingCartSerializer,
-                          TagSerializer, TokenApproveSerializer,
-                          UserSerializer)
+from .pagination import PageLimitPagination
+from .permissions import IsAuthorOrReadOnly, IsActiveOrReadOnly
+from .serializers import (AuthorSerializer, UserSerializer,
+                          IngredientSerializer, TagSerializer,
+                          RecipeSerializer,
+                          FavoriteRecipeSerializer, ShoppingCartSerializer,)
 from .utils import shopping_list
 
 
 User = get_user_model()
 
 
-@api_view(http_method_names=('POST',))
-def invoke_token(request):
-    serializer = TokenApproveSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
-
-    if serializer.validated_data['user'].is_blocked:
-        return Response('Вы заблокированы',
-                        status=status.HTTP_401_UNAUTHORIZED)
-
-    token = serializer.validated_data['user'].create_token()
-    return Response({'auth_token': token.key}, status.HTTP_201_CREATED)
-
-
-@api_view(http_method_names=('POST',))
+@api_view(http_method_names=('POST', 'DELETE'))
 @authentication_classes((TokenAuthentication,))
-@permission_classes((permissions.IsAuthenticated,))
-def revoke_token(request):
-    request.user.delete_token()
+@permission_classes((IsActiveOrReadOnly,))
+def subscribe(request, pk=None):
+    author = get_object_or_404(User, pk=pk)
+    subscriber = request.user
+    subscribed = Subscription.objects.filter(
+        subscriber=subscriber, author=author).exists()
+
+    if request.method == 'POST':
+        if author == subscriber:
+            return Response(
+                {'errors': 'Нельзя подписаться на самого себя.'},
+                status=status.HTTP_400_BAD_REQUEST)
+        if subscribed:
+            return Response(
+                {'errors': 'Вы уже подписаны на этого автора.'},
+                status=status.HTTP_400_BAD_REQUEST)
+
+        subscriber.subscribed.add(author)
+        serializer = AuthorSerializer(author)
+        serializer.context['request'] = request
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    if not subscribed:
+        return Response({'errors': 'Вы не подписаны на данного автора.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+    subscriber.subscribed.remove(author)
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -62,50 +73,10 @@ class UserViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
         serializer = self.get_serializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    @action(methods=('POST',), detail=False,
-            authentication_classes=(TokenAuthentication,),
-            permission_classes=(IsAuthenticatedAndActiveOrReadOnly,),
-            serializer_class=ChangePasswordSerializer)
-    def set_password(self, request):
-        serializer = self.get_serializer(data=request.data)
-        if serializer.is_valid():
-            request.user.set_password(serializer.data['new_password'])
-            request.user.save()
-            return Response('Пароль изменён', status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    @action(methods=('POST', 'DELETE'), detail=True,
-            authentication_classes=(TokenAuthentication,),
-            permission_classes=(IsAuthenticatedAndActiveOrReadOnly,),
-            serializer_class=AuthorSerializer)
-    def subscribe(self, request, pk=None):
-        subscriber = request.user
-        author = self.get_object()
-        subscribed = author in subscriber.subscribed.all()
-
-        if request.method == 'POST':
-            if author == subscriber:
-                return Response(
-                    {'errors': 'Нельзя подписаться на самого себя.'},
-                    status=status.HTTP_400_BAD_REQUEST)
-            if subscribed:
-                return Response(
-                    {'errors': 'Вы уже подписаны на этого автора.'},
-                    status=status.HTTP_400_BAD_REQUEST)
-
-            subscriber.subscribed.add(author)
-            serializer = self.get_serializer(author)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-        if not subscribed:
-            return Response({'errors': 'Вы не подписаны на данного автора.'},
-                            status=status.HTTP_400_BAD_REQUEST)
-        subscriber.subscribed.remove(author)
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(methods=('GET',), detail=False,
             authentication_classes=(TokenAuthentication,),
-            permission_classes=(IsAuthenticatedAndActiveOrReadOnly,),
+            permission_classes=(permissions.IsAuthenticated,),
             serializer_class=AuthorSerializer,
             pagination_class=PageLimitPagination)
     def subscriptions(self, request):
@@ -116,8 +87,7 @@ class UserViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
         return self.get_paginated_response(serializer.data)
 
 
-class IngredientViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
-                        viewsets.GenericViewSet):
+class IngredientViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Ingredient.objects.all()
     serializer_class = IngredientSerializer
 
@@ -133,17 +103,17 @@ class TagViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
 
 class RecipeViewSet(viewsets.ModelViewSet):
     authentication_classes = (TokenAuthentication,)
-    permission_classes = (IsAuthorOrReadOnly,)
+    permission_classes = (IsAuthorOrReadOnly & IsActiveOrReadOnly,)
 
     queryset = Recipe.objects.all()
     serializer_class = RecipeSerializer
-    pagination_class = RecipePagination
+    pagination_class = PageLimitPagination
 
     filter_backends = (DjangoFilterBackend,)
     filterset_class = RecipeFilterSet
 
     @action(methods=('POST', 'DELETE'), detail=True,
-            permission_classes=(IsAuthenticatedAndActiveOrReadOnly,),
+            permission_classes=(IsActiveOrReadOnly,),
             serializer_class=FavoriteRecipeSerializer)
     def favorite(self, request, pk=None):
         data = {'user': request.user.id, 'recipe': self.get_object().id}
@@ -167,7 +137,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
                         status=status.HTTP_400_BAD_REQUEST)
 
     @action(methods=('POST', 'DELETE'), detail=True,
-            permission_classes=(IsAuthenticatedAndActiveOrReadOnly,),
+            permission_classes=(IsActiveOrReadOnly,),
             serializer_class=ShoppingCartSerializer)
     def shopping_cart(self, request, pk=None):
         data = {'user': request.user.id, 'recipe': self.get_object().id}
@@ -188,7 +158,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
                         status=status.HTTP_400_BAD_REQUEST)
 
     @action(methods=('GET',), detail=False,
-            permission_classes=(IsAuthenticatedAndActiveOrReadOnly,),)
+            permission_classes=(permissions.IsAuthenticated,),)
     def download_shopping_cart(self, request):
         filename = 'Shopping cart.txt'
 
