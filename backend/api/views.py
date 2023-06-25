@@ -1,5 +1,6 @@
 from io import BytesIO
 
+from django.db.models import Exists, OuterRef
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
@@ -73,7 +74,6 @@ class UserViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
         serializer = self.get_serializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-
     @action(methods=('GET',), detail=False,
             authentication_classes=(TokenAuthentication,),
             permission_classes=(permissions.IsAuthenticated,),
@@ -111,6 +111,18 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
     filter_backends = (DjangoFilterBackend,)
     filterset_class = RecipeFilterSet
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_authenticated:
+            favorites = FavoriteRecipe.objects.filter(
+                recipe=OuterRef('pk'), user=user)
+            shopping_cart = ShoppingCart.objects.filter(
+                recipe=OuterRef('pk'), user=user)
+            return Recipe.objects.all().annotate(
+                is_favorited=Exists(favorites),
+                is_in_shopping_cart=Exists(shopping_cart))
+        return Recipe.objects.all()
 
     @action(methods=('POST', 'DELETE'), detail=True,
             permission_classes=(IsActiveOrReadOnly,),

@@ -53,8 +53,6 @@ class Recipe(models.Model):
         verbose_name = 'Рецепт'
         verbose_name_plural = 'Рецепты'
         ordering = ('-pk',)
-        constraints = (models.UniqueConstraint(
-            fields=('author', 'name'), name='unique_recipe'),)
 
     def __str__(self):
         return f'{self.name} от {self.author}'

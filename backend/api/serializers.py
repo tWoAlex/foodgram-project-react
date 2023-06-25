@@ -1,6 +1,6 @@
 import base64
 
-from django.shortcuts import get_object_or_404
+from django.db import IntegrityError, transaction
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.files.base import ContentFile
@@ -79,9 +79,9 @@ class Base64ImageField(serializers.ImageField):
 class RecipeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipe
-        fields = ('id', 'author',
-                  'name', 'text', 'image', 'cooking_time',
-                  'tags', 'ingredients')
+        fields = ('id', 'author', 'name', 'text', 'tags',
+                  'image', 'cooking_time', 'ingredients',
+                  'is_favorited', 'is_in_shopping_cart')
         validators = (UniqueTogetherValidator(
             queryset=Recipe.objects.all(), fields=('author', 'name')),)
 
@@ -90,22 +90,8 @@ class RecipeSerializer(serializers.ModelSerializer):
     ingredients = ComponentSerializer(many=True, read_only=True)
     image = Base64ImageField(required=True)
 
-    def to_representation(self, instance):
-        user = self.context['request'].user
-
-        data = super().to_representation(instance)
-        data['tags'] = TagSerializer(many=True).to_representation(
-            instance.tags)
-        data['ingredients'] = ComponentSerializer(
-            many=True).to_representation(instance.ingredients)
-
-        data['is_favorited'] = (
-            FavoriteRecipe.objects.filter(user=user, recipe=instance).exists()
-            if user.is_authenticated else False)
-        data['is_in_shopping_cart'] = (
-            ShoppingCart.objects.filter(user=user, recipe=instance).exists()
-            if user.is_authenticated else False)
-        return data
+    is_favorited = serializers.BooleanField(read_only=True)
+    is_in_shopping_cart = serializers.BooleanField(read_only=True)
 
     def to_internal_value(self, data):
         tags = data.pop('tags')
@@ -124,33 +110,40 @@ class RecipeSerializer(serializers.ModelSerializer):
         tags = validated_data.pop('tags')
         ingredients = validated_data.pop('ingredients')
 
-        recipe = Recipe.objects.create(**validated_data)
-        for tag in tags:
-            TagRecipe.objects.create(tag_id=tag, recipe=recipe)
-        for ingredient in ingredients:
-            Component.objects.create(recipe=recipe,
-                                     ingredient_id=ingredient['id'],
-                                     amount=ingredient['amount'])
-        return recipe
+        try:
+            with transaction.atomic():
+                recipe = Recipe.objects.create(**validated_data)
+                recipe.tags.set(tags)
+                for ingredient in ingredients:
+                    Component.objects.create(
+                        recipe=recipe, ingredient_id=ingredient['id'],
+                        amount=ingredient['amount'])
+                return recipe
+        except IntegrityError:
+            raise serializers.ValidationError(
+                'Невозможно установить указанные связи.')
 
     def __clear_components_and_tags__(self, instance):
-        instance.tags.clear()
         instance.ingredients.all().delete()
 
     def update(self, instance, validated_data):
         tags = validated_data.pop('tags')
         ingredients = validated_data.pop('ingredients')
 
-        self.__clear_components_and_tags__(instance)
-        instance.image.delete()
+        try:
+            with transaction.atomic():
+                instance.ingredients.all().delete()
+                instance.image.delete()
 
-        instance.save(update_fields=validated_data)
-        for tag in tags:
-            TagRecipe.objects.create(tag_id=tag, recipe=instance)
-        for ingredient in ingredients:
-            Component.objects.create(recipe=instance,
-                                     ingredient_id=ingredient['id'],
-                                     amount=ingredient['amount'])
+                instance.save(update_fields=validated_data)
+                instance.tags.set(tags)
+                for ingredient in ingredients:
+                    Component.objects.create(
+                        recipe=instance, ingredient_id=ingredient['id'],
+                        amount=ingredient['amount'])
+        except IntegrityError:
+            raise serializers.ValidationError(
+                'Невозможно установить указанные связи.')
         return super().update(instance, validated_data)
 
 
