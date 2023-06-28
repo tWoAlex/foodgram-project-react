@@ -28,16 +28,12 @@ from .utils import shopping_list
 User = get_user_model()
 
 
-@api_view(http_method_names=('POST', 'DELETE'))
-@authentication_classes((TokenAuthentication,))
-@permission_classes((IsActiveOrReadOnly,))
-def subscribe(request, pk=None):
-    author = get_object_or_404(User, pk=pk)
-    subscriber = request.user
-    subscribed = Subscription.objects.filter(
-        subscriber=subscriber, author=author).exists()
+class SubscriptionViewSet(viewsets.ViewSet):
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsActiveOrReadOnly,)
 
-    if request.method == 'POST':
+    def perform_subscribe(self, subscribed: bool,
+                          author: User, subscriber: User,):
         if author == subscriber:
             return Response(
                 {'errors': 'Нельзя подписаться на самого себя.'},
@@ -46,17 +42,31 @@ def subscribe(request, pk=None):
             return Response(
                 {'errors': 'Вы уже подписаны на этого автора.'},
                 status=status.HTTP_400_BAD_REQUEST)
-
         subscriber.subscribed.add(author)
         serializer = AuthorSerializer(author)
-        serializer.context['request'] = request
+        serializer.context['request'] = self.request
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    if not subscribed:
-        return Response({'errors': 'Вы не подписаны на данного автора.'},
-                        status=status.HTTP_400_BAD_REQUEST)
-    subscriber.subscribed.remove(author)
-    return Response(status=status.HTTP_204_NO_CONTENT)
+    def perform_unsubscribe(self, subscribed: bool,
+                            author: User, subscriber: User,):
+        if not subscribed:
+            return Response(
+                {'errors': 'Вы не подписаны на данного автора.'},
+                status=status.HTTP_400_BAD_REQUEST)
+
+        subscriber.subscribed.remove(author)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    METHOD_TO_METHOD = {'POST': perform_subscribe, 'DELETE': perform_unsubscribe}
+
+    @action(methods=('POST', 'DELETE'), detail=False,)
+    def subscribe(self, request, author_id=None):
+        author = get_object_or_404(User, pk=author_id)
+        subscriber = request.user
+        subscribed = Subscription.objects.filter(
+            subscriber=subscriber, author=author).exists()
+
+        return self.METHOD_TO_METHOD[request.method](self, subscribed, author, subscriber)
 
 
 class UserViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,

@@ -90,8 +90,8 @@ class RecipeSerializer(serializers.ModelSerializer):
     ingredients = ComponentSerializer(many=True, read_only=True)
     image = Base64ImageField(required=True)
 
-    is_favorited = serializers.BooleanField(read_only=True)
-    is_in_shopping_cart = serializers.BooleanField(read_only=True)
+    is_favorited = serializers.BooleanField(read_only=True, default=False)
+    is_in_shopping_cart = serializers.BooleanField(read_only=True, default=False)
 
     def to_internal_value(self, data):
         tags = data.pop('tags')
@@ -106,44 +106,38 @@ class RecipeSerializer(serializers.ModelSerializer):
         value['author'] = self.context['request'].user
         return super().run_validators(value)
 
+    @transaction.atomic
     def create(self, validated_data):
         tags = validated_data.pop('tags')
         ingredients = validated_data.pop('ingredients')
 
-        try:
-            with transaction.atomic():
-                recipe = Recipe.objects.create(**validated_data)
-                recipe.tags.set(tags)
-                for ingredient in ingredients:
-                    Component.objects.create(
-                        recipe=recipe, ingredient_id=ingredient['id'],
-                        amount=ingredient['amount'])
-                return recipe
-        except IntegrityError:
-            raise serializers.ValidationError(
-                'Невозможно установить указанные связи.')
+        recipe = Recipe.objects.create(**validated_data)
+        recipe.tags.set(tags)
+        Component.objects.bulk_create(
+            [Component(recipe=recipe,
+                       ingredient_id=ingredient['id'],
+                       amount=ingredient['amount'])
+             for ingredient in ingredients])
+        return recipe
 
     def __clear_components_and_tags__(self, instance):
         instance.ingredients.all().delete()
 
+    @transaction.atomic
     def update(self, instance, validated_data):
         tags = validated_data.pop('tags')
         ingredients = validated_data.pop('ingredients')
 
-        try:
-            with transaction.atomic():
-                instance.ingredients.all().delete()
-                instance.image.delete()
+        instance.ingredients.all().delete()
+        instance.image.delete()
 
-                instance.save(update_fields=validated_data)
-                instance.tags.set(tags)
-                for ingredient in ingredients:
-                    Component.objects.create(
-                        recipe=instance, ingredient_id=ingredient['id'],
-                        amount=ingredient['amount'])
-        except IntegrityError:
-            raise serializers.ValidationError(
-                'Невозможно установить указанные связи.')
+        instance.save(update_fields=validated_data)
+        instance.tags.set(tags)
+        Component.objects.bulk_create(
+            [Component(recipe=instance,
+                       ingredient_id=ingredient['id'],
+                       amount=ingredient['amount'])
+             for ingredient in ingredients])
         return super().update(instance, validated_data)
 
 
