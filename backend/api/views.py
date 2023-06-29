@@ -56,7 +56,8 @@ class SubscriptionViewSet(viewsets.ViewSet):
         subscriber.subscribed.remove(author)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    METHOD_TO_METHOD = {'POST': perform_subscribe, 'DELETE': perform_unsubscribe}
+    METHOD_TO_METHOD = {'POST': perform_subscribe,
+                        'DELETE': perform_unsubscribe}
 
     @action(methods=('POST', 'DELETE'), detail=False,)
     def subscribe(self, request, author_id=None):
@@ -65,7 +66,8 @@ class SubscriptionViewSet(viewsets.ViewSet):
         subscribed = Subscription.objects.filter(
             subscriber=subscriber, author=author).exists()
 
-        return self.METHOD_TO_METHOD[request.method](self, subscribed, author, subscriber)
+        return self.METHOD_TO_METHOD[request.method](self, subscribed,
+                                                     author, subscriber)
 
 
 class UserViewSet(DjoserUserViewSet):
@@ -79,7 +81,7 @@ class UserViewSet(DjoserUserViewSet):
         user = self.request.user
         if user.is_authenticated:
             subscription = Subscription.objects.filter(
-                author=OuterRef('pk'),subscriber=user)
+                author=OuterRef('pk'), subscriber=user)
             return User.objects.all().annotate(
                 is_subscribed=Exists(subscription))
         return User.objects.all()
@@ -137,7 +139,8 @@ class RecipeViewSet(viewsets.ModelViewSet):
         return Recipe.objects.all().select_related('author').prefetch_related(
             'ingredients', 'ingredients__ingredient')
 
-    def __manage_list(self, request, obj_id, serializer_class, linking_model=None):
+    def __manage_list(self, request, obj_id,
+                      serializer_class, linking_model=None):
         data = {'user': request.user.id, 'recipe': obj_id}
         link = serializer_class(data=data)
 
@@ -151,7 +154,8 @@ class RecipeViewSet(viewsets.ModelViewSet):
         if link.exists():
             link.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
-        return Response('Рецепт не в списке', status=status.HTTP_400_BAD_REQUEST)
+        return Response('Рецепт не в списке',
+                        status=status.HTTP_400_BAD_REQUEST)
 
     @action(methods=('POST', 'DELETE'), detail=True,
             permission_classes=(IsActiveOrReadOnly,))

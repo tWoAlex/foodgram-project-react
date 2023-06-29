@@ -16,7 +16,7 @@ User = get_user_model()
 class UserSerializer(DjoserUserSerializer):
     class Meta:
         model = User
-        fields = ('email', 'id', 'username','first_name', 'last_name',
+        fields = ('email', 'id', 'username', 'first_name', 'last_name',
                   'is_subscribed', 'password')
 
     is_subscribed = serializers.BooleanField(read_only=True, default=False)
@@ -72,12 +72,14 @@ class RecipeSerializer(serializers.ModelSerializer):
             queryset=Recipe.objects.all(), fields=('author', 'name')),)
 
     author = UserSerializer(read_only=True)
-    tags = serializers.PrimaryKeyRelatedField(many=True, queryset = Tag.objects.all())
+    tags = serializers.PrimaryKeyRelatedField(many=True,
+                                              queryset=Tag.objects.all())
     ingredients = ComponentSerializer(many=True, read_only=True)
     image = Base64ImageField(required=True)
 
     is_favorited = serializers.BooleanField(read_only=True, default=False)
-    is_in_shopping_cart = serializers.BooleanField(read_only=True, default=False)
+    is_in_shopping_cart = serializers.BooleanField(read_only=True,
+                                                   default=False)
 
     def to_internal_value(self, data):
         ingredients = data.pop('ingredients')
@@ -87,7 +89,8 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         representative = super().to_representation(instance)
-        representative['tags'] = TagSerializer(many=True).to_representation(instance.tags)
+        representative['tags'] = TagSerializer(
+            many=True).to_representation(instance.tags)
         return representative
 
     def run_validators(self, value):
