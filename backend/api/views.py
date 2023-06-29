@@ -1,28 +1,28 @@
 from io import BytesIO
 
+from django.contrib.auth import get_user_model
 from django.db.models import Exists, OuterRef
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
-from django.contrib.auth import get_user_model
+from django_filters.rest_framework import DjangoFilterBackend
+from djoser.views import UserViewSet as DjoserUserViewSet
 from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django_filters.rest_framework import DjangoFilterBackend
-from djoser.views import UserViewSet as DjoserUserViewSet
 
-from users.models import Subscription
 from recipes.models import (FavoriteRecipe, Ingredient, Recipe, ShoppingCart,
                             Tag)
+from users.models import Subscription
+
 from .filters import IngredientFilterSet, RecipeFilterSet
 from .pagination import PageLimitPagination
-from .permissions import IsAuthorOrReadOnly, IsActiveOrReadOnly
-from .serializers import (AuthorSerializer, UserSerializer,
-                          IngredientSerializer, TagSerializer,
-                          RecipeSerializer,
-                          FavoriteRecipeSerializer, ShoppingCartSerializer,)
+from .permissions import IsActiveOrReadOnly, IsAuthorOrReadOnly
+from .serializers import (AuthorSerializer, FavoriteRecipeSerializer,
+                          IngredientSerializer, RecipeSerializer,
+                          ShoppingCartSerializer, TagSerializer,
+                          UserSerializer)
 from .utils import shopping_list
-
 
 User = get_user_model()
 
