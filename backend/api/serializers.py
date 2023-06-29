@@ -1,11 +1,11 @@
 import base64
 
-from django.db import IntegrityError, transaction
+from django.db import transaction
 from django.contrib.auth import get_user_model
-from django.contrib.auth.password_validation import validate_password
 from django.core.files.base import ContentFile
 from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator
+from djoser.serializers import UserSerializer as DjoserUserSerializer
 
 from recipes.models import (Ingredient, Component, Recipe, Tag,
                             FavoriteRecipe, ShoppingCart)
@@ -14,31 +14,18 @@ from recipes.models import (Ingredient, Component, Recipe, Tag,
 User = get_user_model()
 
 
-class UserSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(required=True,
-                                     validators=(validate_password,))
-
+class UserSerializer(DjoserUserSerializer):
     class Meta:
         model = User
-        fields = ('email', 'id', 'username',
-                  'first_name', 'last_name', 'password')
+        fields = ('email', 'id', 'username','first_name', 'last_name',
+                  'is_subscribed', 'password')
 
-    def create(self, validated_data):
-        password = validated_data.pop('password')
-        user = super().create(validated_data)
-        user.set_password(password)
-        user.save()
-        return user
+    is_subscribed = serializers.BooleanField(read_only=True, default=False)
 
     def to_representation(self, instance):
-        data = super().to_representation(instance)
-        data.pop('password')
-
-        user = self.context['request'].user
-        data['is_subscribed'] = (
-            instance in user.subscribed.all()
-            if user.is_authenticated else False)
-        return data
+        representative = super().to_representation(instance)
+        representative.pop('password')
+        return representative
 
 
 class IngredientSerializer(serializers.ModelSerializer):
@@ -86,7 +73,7 @@ class RecipeSerializer(serializers.ModelSerializer):
             queryset=Recipe.objects.all(), fields=('author', 'name')),)
 
     author = UserSerializer(read_only=True)
-    tags = TagSerializer(many=True, read_only=True)
+    tags = serializers.PrimaryKeyRelatedField(many=True, queryset = Tag.objects.all())
     ingredients = ComponentSerializer(many=True, read_only=True)
     image = Base64ImageField(required=True)
 
@@ -94,13 +81,15 @@ class RecipeSerializer(serializers.ModelSerializer):
     is_in_shopping_cart = serializers.BooleanField(read_only=True, default=False)
 
     def to_internal_value(self, data):
-        tags = data.pop('tags')
         ingredients = data.pop('ingredients')
-
         data = super().to_internal_value(data)
-        data['tags'] = tags
         data['ingredients'] = ingredients
         return data
+
+    def to_representation(self, instance):
+        representative = super().to_representation(instance)
+        representative['tags'] = TagSerializer(many=True).to_representation(instance.tags)
+        return representative
 
     def run_validators(self, value):
         value['author'] = self.context['request'].user
@@ -167,11 +156,12 @@ class ShoppingCartSerializer(serializers.ModelSerializer):
 
 
 class AuthorSerializer(UserSerializer):
-    read_only_fields = '__all__'
+    class Meta(UserSerializer.Meta):
+        fields = UserSerializer.Meta.fields + ('recipes',)
+
+    recipes = RecipeInListSerializer(many=True)
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        data['recipes'] = RecipeInListSerializer(
-            instance.recipes.all(), many=True).data
         data['recipes_count'] = len(data['recipes'])
         return data

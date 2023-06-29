@@ -1,7 +1,6 @@
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.db import models
-from rest_framework.authtoken.models import Token
 
 
 class User(AbstractUser):
@@ -12,6 +11,9 @@ class User(AbstractUser):
     class Statuses(models.TextChoices):
         ACTIVE = 'active', 'Активен'
         BLOCKED = 'blocked', 'Заблокирован'
+
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ('username', 'first_name', 'last_name')
 
     role = models.CharField(choices=Roles.choices, default=Roles.USER,
                             max_length=5, verbose_name='Роль')
@@ -40,13 +42,6 @@ class User(AbstractUser):
         if self.first_name:
             return f'{self.first_name} {self.last_name}'
         return self.username
-
-    def delete_token(self):
-        Token.objects.filter(user=self).delete()
-
-    def create_token(self):
-        self.delete_token()
-        return Token.objects.create(user=self)
 
 
 class Subscription(models.Model):

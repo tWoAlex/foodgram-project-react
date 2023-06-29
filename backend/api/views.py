@@ -6,11 +6,10 @@ from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.authentication import TokenAuthentication
-from rest_framework.decorators import (action, api_view,
-                                       authentication_classes,
-                                       permission_classes)
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
+from djoser.views import UserViewSet as DjoserUserViewSet
 
 from users.models import Subscription
 from recipes.models import (FavoriteRecipe, Ingredient, Recipe, ShoppingCart,
@@ -69,20 +68,21 @@ class SubscriptionViewSet(viewsets.ViewSet):
         return self.METHOD_TO_METHOD[request.method](self, subscribed, author, subscriber)
 
 
-class UserViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
-                  mixins.CreateModelMixin, viewsets.GenericViewSet):
+class UserViewSet(DjoserUserViewSet):
     authentication_classes = (TokenAuthentication,)
+    permission_classes = (permissions.IsAuthenticatedOrReadOnly,)
 
-    queryset = User.objects.all()
     serializer_class = UserSerializer
     pagination_class = PageLimitPagination
 
-    @action(methods=('GET',), detail=False,
-            authentication_classes=(TokenAuthentication,),
-            permission_classes=(permissions.IsAuthenticated,))
-    def me(self, request):
-        serializer = self.get_serializer(request.user)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_authenticated:
+            subscription = Subscription.objects.filter(
+                author=OuterRef('pk'),subscriber=user)
+            return User.objects.all().annotate(
+                is_subscribed=Exists(subscription))
+        return User.objects.all()
 
     @action(methods=('GET',), detail=False,
             authentication_classes=(TokenAuthentication,),
@@ -164,49 +164,6 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def shopping_cart(self, request, pk=None):
         return self.__manage_list(request, self.get_object().id,
                                   ShoppingCartSerializer, ShoppingCart)
-
-    # @action(methods=('POST', 'DELETE'), detail=True,
-    #         permission_classes=(IsActiveOrReadOnly,),
-    #         serializer_class=FavoriteRecipeSerializer)
-    # def favorite(self, request, pk=None):
-    #     data = {'user': request.user.id, 'recipe': self.get_object().id}
-    #     favorite = self.get_serializer(data=data)
-
-    #     if request.method == 'POST':
-    #         if favorite.is_valid():
-    #             favorite.save()
-    #             return Response(favorite.data, status=status.HTTP_201_CREATED)
-    #         return Response(favorite.errors,
-    #                         status=status.HTTP_400_BAD_REQUEST)
-
-    #     favorite = FavoriteRecipe.objects.filter(**data)
-    #     if favorite.exists():
-    #         favorite.delete()
-    #         return Response(status=status.HTTP_204_NO_CONTENT)
-    #     return Response('Рецепт не в избранном',
-    #                     status=status.HTTP_400_BAD_REQUEST)
-
-    # @action(methods=('POST', 'DELETE'), detail=True,
-    #         permission_classes=(IsActiveOrReadOnly,),
-    #         serializer_class=ShoppingCartSerializer)
-    # def shopping_cart(self, request, pk=None):
-    #     data = {'user': request.user.id, 'recipe': self.get_object().id}
-    #     purchase = self.get_serializer(data=data)
-
-    #     if request.method == 'POST':
-    #         if purchase.is_valid():
-    #             purchase.save()
-    #             return Response(purchase.data, status=status.HTTP_201_CREATED)
-    #         return Response(purchase.errors,
-    #                         status=status.HTTP_400_BAD_REQUEST)
-
-    #     purchase = ShoppingCart.objects.filter(**data)
-    #     if purchase.exists():
-    #         purchase.delete()
-    #         return Response(status=status.HTTP_204_NO_CONTENT)
-    #     return Response('Рецепт не в корзине',
-    #                     status=status.HTTP_400_BAD_REQUEST)
-
 
     @action(methods=('GET',), detail=False,
             permission_classes=(permissions.IsAuthenticated,),)

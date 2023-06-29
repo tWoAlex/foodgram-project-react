@@ -100,8 +100,12 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-DJOSER = {'LOGIN_FIELD': 'email'}
-
+DJOSER = {
+    'LOGIN_FIELD': 'email',
+    'PERMISSIONS': {
+        'user_list': ('rest_framework.permissions.IsAuthenticatedOrReadOnly',),
+    },
+}
 
 LANGUAGE_CODE = 'ru-RU'
 TIME_ZONE = 'UTC'
