@@ -2,6 +2,7 @@ from io import BytesIO
 
 from django.contrib.auth import get_user_model
 from django.db.models import Exists, OuterRef
+from django.db.transaction import atomic
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
@@ -124,20 +125,23 @@ class RecipeViewSet(viewsets.ModelViewSet):
     filter_backends = (DjangoFilterBackend,)
     filterset_class = RecipeFilterSet
 
+    @atomic
     def get_queryset(self):
+        queryset = (Recipe.objects
+                    .select_related('author')
+                    .prefetch_related('ingredients',
+                                      'ingredients__ingredient'))
+
         user = self.request.user
         if user.is_authenticated:
             favorites = FavoriteRecipe.objects.filter(
                 recipe=OuterRef('pk'), user=user)
             shopping_cart = ShoppingCart.objects.filter(
                 recipe=OuterRef('pk'), user=user)
-            return Recipe.objects.all().annotate(
+            return queryset.annotate(
                 is_favorited=Exists(favorites),
-                is_in_shopping_cart=Exists(shopping_cart)
-            ).select_related('author').prefetch_related(
-                'ingredients', 'ingredients__ingredient')
-        return Recipe.objects.all().select_related('author').prefetch_related(
-            'ingredients', 'ingredients__ingredient')
+                is_in_shopping_cart=Exists(shopping_cart))
+        return queryset
 
     def __manage_list(self, request, obj_id,
                       serializer_class, linking_model=None):
@@ -150,9 +154,8 @@ class RecipeViewSet(viewsets.ModelViewSet):
                 return Response(link.data, status=status.HTTP_201_CREATED)
             return Response(link.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        link = linking_model.objects.filter(**data)
-        if link.exists():
-            link.delete()
+        link_count = linking_model.objects.filter(**data).delete()[0]
+        if link_count:
             return Response(status=status.HTTP_204_NO_CONTENT)
         return Response('Рецепт не в списке',
                         status=status.HTTP_400_BAD_REQUEST)

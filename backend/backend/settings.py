@@ -119,6 +119,7 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework.authentication.TokenAuthentication',
     ),
+    'PAGELIMITPAGINATION_PAGE_SIZE': 6
 }
 
 AUTH_USER_MODEL = 'users.User'

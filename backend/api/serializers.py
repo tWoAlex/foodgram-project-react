@@ -2,7 +2,8 @@ import base64
 
 from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
-from django.db import transaction
+from django.db.transaction import atomic
+from django.shortcuts import get_object_or_404
 from djoser.serializers import UserSerializer as DjoserUserSerializer
 from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator
@@ -38,12 +39,16 @@ class TagSerializer(serializers.ModelSerializer):
         model = Tag
         fields = '__all__'
 
+    def to_internal_value(self, data):
+        return get_object_or_404(Tag, id=data)
+
 
 class ComponentSerializer(IngredientSerializer):
     class Meta:
         model = Component
         fields = ('id', 'amount')
-        read_only_fields = fields
+
+    id = serializers.PrimaryKeyRelatedField(queryset=Ingredient.objects.all())
 
     def to_representation(self, instance):
         data = IngredientSerializer().to_representation(
@@ -72,63 +77,47 @@ class RecipeSerializer(serializers.ModelSerializer):
             queryset=Recipe.objects.all(), fields=('author', 'name')),)
 
     author = UserSerializer(read_only=True)
-    tags = serializers.PrimaryKeyRelatedField(many=True,
-                                              queryset=Tag.objects.all())
-    ingredients = ComponentSerializer(many=True, read_only=True)
+    tags = TagSerializer(many=True)
+    ingredients = ComponentSerializer(many=True)
     image = Base64ImageField(required=True)
 
     is_favorited = serializers.BooleanField(read_only=True, default=False)
     is_in_shopping_cart = serializers.BooleanField(read_only=True,
                                                    default=False)
 
-    def to_internal_value(self, data):
-        ingredients = data.pop('ingredients')
-        data = super().to_internal_value(data)
-        data['ingredients'] = ingredients
-        return data
-
-    def to_representation(self, instance):
-        representative = super().to_representation(instance)
-        representative['tags'] = TagSerializer(
-            many=True).to_representation(instance.tags)
-        return representative
-
     def run_validators(self, value):
         value['author'] = self.context['request'].user
         return super().run_validators(value)
 
-    @transaction.atomic
+    @atomic
     def create(self, validated_data):
         tags = validated_data.pop('tags')
         ingredients = validated_data.pop('ingredients')
 
         recipe = Recipe.objects.create(**validated_data)
         recipe.tags.set(tags)
-        Component.objects.bulk_create(
-            [Component(recipe=recipe,
-                       ingredient_id=ingredient['id'],
-                       amount=ingredient['amount'])
-             for ingredient in ingredients])
+        (Component.objects
+         .bulk_create([Component(recipe=recipe,
+                                 ingredient=ingredient['id'],
+                                 amount=ingredient['amount'])
+                       for ingredient in ingredients]))
         return recipe
 
-    def __clear_components_and_tags__(self, instance):
-        instance.ingredients.all().delete()
-
-    @transaction.atomic
+    @atomic
     def update(self, instance, validated_data):
         tags = validated_data.pop('tags')
         ingredients = validated_data.pop('ingredients')
 
         instance.ingredients.all().delete()
-        instance.image.delete()
+        instance.image.delete()  # Removes previous image file from filesystem
 
         instance.save(update_fields=validated_data)
         instance.tags.set(tags)
-        Component.objects.bulk_create(
-            [Component(recipe=instance,
-                       ingredient_id=ingredient['id'],
-                       amount=ingredient['amount'])
-             for ingredient in ingredients])
+        (Component.objects
+         .bulk_create([Component(recipe=instance,
+                                 ingredient=ingredient['id'],
+                                 amount=ingredient['amount'])
+                       for ingredient in ingredients]))
         return super().update(instance, validated_data)
 
 
