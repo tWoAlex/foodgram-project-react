@@ -97,12 +97,12 @@ class RecipeSerializer(serializers.ModelSerializer):
         recipe = Recipe.objects.create(**validated_data)
         recipe.tags.set(tags)
         (
-         Component.objects
-         .bulk_create([
-             Component(recipe=recipe,
-                       ingredient=ingredient['id'],
-                       amount=ingredient['amount'])
-             for ingredient in ingredients])
+            Component.objects
+            .bulk_create([
+                Component(recipe=recipe,
+                          ingredient=ingredient['id'],
+                          amount=ingredient['amount'])
+                for ingredient in ingredients])
         )
         return recipe
 
@@ -116,11 +116,14 @@ class RecipeSerializer(serializers.ModelSerializer):
 
         instance.save(update_fields=validated_data)
         instance.tags.set(tags)
-        (Component.objects
-         .bulk_create([Component(recipe=instance,
-                                 ingredient=ingredient['id'],
-                                 amount=ingredient['amount'])
-                       for ingredient in ingredients]))
+        (
+            Component.objects
+            .bulk_create([
+                Component(recipe=instance,
+                          ingredient=ingredient['id'],
+                          amount=ingredient['amount'])
+                for ingredient in ingredients])
+        )
         return super().update(instance, validated_data)
 
 

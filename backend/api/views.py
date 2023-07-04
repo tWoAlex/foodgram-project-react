@@ -25,7 +25,6 @@ from .serializers import (AuthorSerializer, FavoriteRecipeSerializer,
                           UserSerializer)
 from .utils import shopping_list
 
-
 User = get_user_model()
 
 
