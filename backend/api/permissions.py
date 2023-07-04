@@ -21,8 +21,8 @@ class IsActiveOrReadOnly(permissions.IsAuthenticatedOrReadOnly):
                 else True)
 
     def has_permission(self, request, view):
-        return self.__is_active(request) or request.method == 'GET'
-
-    def has_object_permission(self, request, view, obj):
         return (self.__is_active(request)
                 or request.method in permissions.SAFE_METHODS)
+
+    def has_object_permission(self, request, view, obj):
+        return self.has_permission(request, view)

@@ -6,13 +6,14 @@ from .views import (IngredientViewSet, RecipeViewSet, SubscriptionViewSet,
 
 router = DefaultRouter()
 router.register('users', UserViewSet, basename='users')
-router.register(r'users/(?P<author_id>\d+)', SubscriptionViewSet,
-                basename='subscribe')
 router.register('ingredients', IngredientViewSet, basename='ingredients')
 router.register('recipes', RecipeViewSet, basename='recipes')
 router.register('tags', TagViewSet, basename='tags')
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('users/<int:author_id>/subscribe/',
+         SubscriptionViewSet.as_view({'post': 'create',
+                                      'delete': 'destroy'})),
     path('auth/', include('djoser.urls.authtoken')),
 ]

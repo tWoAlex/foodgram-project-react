@@ -25,50 +25,46 @@ from .serializers import (AuthorSerializer, FavoriteRecipeSerializer,
                           UserSerializer)
 from .utils import shopping_list
 
+
 User = get_user_model()
 
 
-class SubscriptionViewSet(viewsets.ViewSet):
+class SubscriptionViewSet(mixins.CreateModelMixin, mixins.DestroyModelMixin,
+                          viewsets.GenericViewSet):
     authentication_classes = (TokenAuthentication,)
     permission_classes = (IsActiveOrReadOnly,)
 
-    def perform_subscribe(self, subscribed: bool,
-                          author: User, subscriber: User,):
+    def create(self, request, *args, **kwargs):
+        author = get_object_or_404(User, pk=kwargs['author_id'])
+        subscriber = request.user
+        subscribed = Subscription.objects.filter(
+            subscriber=subscriber, author=author).exists()
+
         if author == subscriber:
-            return Response(
-                {'errors': 'Нельзя подписаться на самого себя.'},
-                status=status.HTTP_400_BAD_REQUEST)
+            return Response('Нельзя подписаться на самого себя.',
+                            status=status.HTTP_400_BAD_REQUEST)
         if subscribed:
-            return Response(
-                {'errors': 'Вы уже подписаны на этого автора.'},
-                status=status.HTTP_400_BAD_REQUEST)
+            return Response('Вы уже подписаны на этого автора.',
+                            status=status.HTTP_400_BAD_REQUEST)
+
         subscriber.subscribed.add(author)
         serializer = AuthorSerializer(author)
         serializer.context['request'] = self.request
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    def perform_unsubscribe(self, subscribed: bool,
-                            author: User, subscriber: User,):
-        if not subscribed:
-            return Response(
-                {'errors': 'Вы не подписаны на данного автора.'},
-                status=status.HTTP_400_BAD_REQUEST)
-
-        subscriber.subscribed.remove(author)
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-    METHOD_TO_METHOD = {'POST': perform_subscribe,
-                        'DELETE': perform_unsubscribe}
-
-    @action(methods=('POST', 'DELETE'), detail=False,)
-    def subscribe(self, request, author_id=None):
-        author = get_object_or_404(User, pk=author_id)
+    def destroy(self, request, *args, **kwargs):
+        author = get_object_or_404(User, pk=kwargs['author_id'])
         subscriber = request.user
         subscribed = Subscription.objects.filter(
             subscriber=subscriber, author=author).exists()
 
-        return self.METHOD_TO_METHOD[request.method](self, subscribed,
-                                                     author, subscriber)
+        if not subscribed:
+            return Response(
+                'Вы не подписаны на данного автора.',
+                status=status.HTTP_400_BAD_REQUEST)
+
+        subscriber.subscribed.remove(author)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class UserViewSet(DjoserUserViewSet):
@@ -83,8 +79,7 @@ class UserViewSet(DjoserUserViewSet):
         if user.is_authenticated:
             subscription = Subscription.objects.filter(
                 author=OuterRef('pk'), subscriber=user)
-            return User.objects.all().annotate(
-                is_subscribed=Exists(subscription))
+            return User.objects.annotate(is_subscribed=Exists(subscription))
         return User.objects.all()
 
     @action(methods=('GET',), detail=False,
@@ -127,10 +122,11 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
     @atomic
     def get_queryset(self):
-        queryset = (Recipe.objects
-                    .select_related('author')
-                    .prefetch_related('ingredients',
-                                      'ingredients__ingredient'))
+        queryset = (
+            Recipe.objects
+            .select_related('author')
+            .prefetch_related('ingredients', 'ingredients__ingredient')
+        )
 
         user = self.request.user
         if user.is_authenticated:
@@ -149,12 +145,11 @@ class RecipeViewSet(viewsets.ModelViewSet):
         link = serializer_class(data=data)
 
         if request.method == 'POST':
-            if link.is_valid():
-                link.save()
-                return Response(link.data, status=status.HTTP_201_CREATED)
-            return Response(link.errors, status=status.HTTP_400_BAD_REQUEST)
+            link.is_valid(raise_exception=True)
+            link.save()
+            return Response(link.data, status=status.HTTP_201_CREATED)
 
-        link_count = linking_model.objects.filter(**data).delete()[0]
+        link_count, _ = linking_model.objects.filter(**data).delete()
         if link_count:
             return Response(status=status.HTTP_204_NO_CONTENT)
         return Response('Рецепт не в списке',
