@@ -93,3 +93,102 @@ sudo docker exec -it {{ container_id }} python manage.py createsuperuser
 #### API проекта также доступен отдельно, в виде образа `twoalex/foodgram_backend:latest` на Docker Hub.
 
 Документация расположена по адресу `http://158.160.22.254/api/docs/`
+
+### Тестовый экземпляр
+
+#### Протестируйте живую версию проекта по адресу `http://158.160.22.254`
+<details>
+  <summary>Аккаунт администратора</summary>
+
+>Логин:
+>
+>```
+>dungeonmaster
+>```
+>
+>E-Mail:
+>
+>```
+>dungeonmaster@dungeon.gym
+>```
+>
+>Пароль:
+>
+>```
+>holdyourpython
+>```
+
+</details>
+<details>
+  <summary>Тестовые пользователи</summary>
+
+><details>
+><summary>Альберт Эйнштейн</summary>
+>
+>Логин:
+>
+>```
+>albert_genius
+>```
+>
+>E-Mail:
+>
+>```
+>genius@dungeon.gym
+>```
+>
+>Пароль:
+>
+>```
+>flexingthroughthewind
+>```
+>
+></details>
+
+><details>
+><summary>Наполеон Бонапарт</summary>
+>
+>Логин:
+>
+>```
+>buonaparte
+>```
+>
+>E-Mail:
+>
+>```
+>buonaparte@strategy.genius
+>```
+>
+>Пароль:
+>
+>```
+>antiquehero
+>```
+>
+></details>
+
+><details>
+><summary>Алан Тьюринг</summary>
+>
+>Логин:
+>
+>```
+>turing
+>```
+>
+>E-Mail:
+>
+>```
+>enigma@ohmy.math
+>```
+>
+>Пароль:
+>
+>```
+>howareyoudescendants
+>```
+>
+></details>
+
+</details>
