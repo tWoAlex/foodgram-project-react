@@ -1,7 +1,7 @@
 from io import BytesIO
 
 from django.contrib.auth import get_user_model
-from django.db.models import Exists, OuterRef
+from django.db.models import Exists, OuterRef, Prefetch
 from django.db.transaction import atomic
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
@@ -123,7 +123,6 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = (
             Recipe.objects
-            .select_related('author')
             .prefetch_related('ingredients', 'ingredients__ingredient')
         )
 
@@ -133,10 +132,21 @@ class RecipeViewSet(viewsets.ModelViewSet):
                 recipe=OuterRef('pk'), user=user)
             shopping_cart = ShoppingCart.objects.filter(
                 recipe=OuterRef('pk'), user=user)
-            return queryset.annotate(
-                is_favorited=Exists(favorites),
-                is_in_shopping_cart=Exists(shopping_cart))
-        return queryset
+            subscription = Subscription.objects.filter(
+                author_id=OuterRef('id'), subscriber=user)
+            return (
+                queryset
+                .annotate(is_favorited=Exists(favorites),
+                          is_in_shopping_cart=Exists(shopping_cart))
+                .prefetch_related(
+                    Prefetch(
+                        'author',
+                        User.objects.annotate(
+                            is_subscribed=Exists(subscription))
+                    )
+                )
+            )
+        return queryset.select_related('author')
 
     def __manage_list(self, request, obj_id,
                       serializer_class, linking_model=None):
